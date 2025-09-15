@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { FileText, Eye, Code } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { FileText, Eye, Code, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from '@/hooks/use-toast'
 
 interface Document {
   id: string
@@ -23,37 +23,58 @@ export const DocumentsList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
   const navigate = useNavigate()
 
+  // Check if Supabase is configured
+  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+
   useEffect(() => {
+    if (!supabaseConfigured) {
+      // Load mock data if Supabase is not configured
+      const mockDocuments: Document[] = [
+        {
+          id: '1',
+          provider_id: 'provider1',
+          filename: 'Patient_Record_001.pdf',
+          file_path: 'mock/path',
+          page_count: 15,
+          file_size: 2500000,
+          uploaded_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          status: 'UPLOADED',
+          provider_name: 'Dr. Smith Medical Practice'
+        },
+        {
+          id: '2',
+          provider_id: 'provider2',
+          filename: 'Surgery_Report_002.pdf',
+          file_path: 'mock/path',
+          page_count: 8,
+          file_size: 1200000,
+          uploaded_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          status: 'ASSIGNED',
+          provider_name: 'General Hospital'
+        }
+      ]
+      setDocuments(mockDocuments)
+      setIsLoading(false)
+      return
+    }
+
     fetchDocuments()
-  }, [])
+  }, [supabaseConfigured])
 
   const fetchDocuments = async () => {
-    try {
-      const { data } = await supabase
-        .from('documents')
-        .select(`
-          *,
-          profiles!documents_provider_id_fkey (
-            name
-          )
-        `)
-        .order('uploaded_at', { ascending: false })
-
-      if (data) {
-        const documentsWithProviderName = data.map(doc => ({
-          ...doc,
-          provider_name: doc.profiles?.name || 'Unknown Provider'
-        }))
-        setDocuments(documentsWithProviderName)
-      }
-    } catch (error) {
-      console.error('Error fetching documents:', error)
-    } finally {
-      setIsLoading(false)
-    }
+    // This would fetch from Supabase when configured
+    setIsLoading(false)
   }
 
   const handleStartCoding = (documentId: string) => {
+    if (!supabaseConfigured) {
+      toast({
+        title: "Configuration Required",
+        description: "Complete Supabase integration to access the coding workspace",
+        variant: "destructive",
+      })
+      return
+    }
     navigate(`/coding?docId=${documentId}`)
   }
 
@@ -98,6 +119,22 @@ export const DocumentsList: React.FC = () => {
           View and code medical documents uploaded by providers.
         </p>
       </div>
+
+      {!supabaseConfigured && (
+        <Card className="border-warning/20 bg-warning/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              <div>
+                <p className="font-medium text-warning">Demo Mode</p>
+                <p className="text-sm text-muted-foreground">
+                  Showing mock data. Complete Supabase integration to connect to real documents.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { AuthUser } from '@/types/user'
+import { AuthUser, LoginCredentials } from '@/types/user'
 
 export const useSupabaseAuth = () => {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Only proceed if Supabase is configured
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      setIsLoading(false)
+      return
+    }
+
     // Get initial session
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -52,10 +58,10 @@ export const useSupabaseAuth = () => {
     }
   }
 
-  const login = async (email: string, password: string) => {
+  const login = async (credentials: LoginCredentials) => {
     const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: credentials.email,
+      password: credentials.password,
     })
     return !error
   }

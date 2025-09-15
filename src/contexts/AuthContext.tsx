@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { AuthUser, LoginCredentials, User } from '@/types/user';
 import { mockUsers } from '@/data/mockData';
 import { toast } from '@/hooks/use-toast';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -25,25 +26,34 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Check if Supabase is properly configured
+  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  // Use Supabase auth if configured, otherwise fall back to mock auth
+  const supabaseAuth = supabaseConfigured ? useSupabaseAuth() : null;
+  
+  // Mock auth fallback
+  const [mockUser, setMockUser] = useState<AuthUser | null>(null);
+  const [mockIsLoading, setMockIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth session on mount
-    const storedUser = localStorage.getItem('cyptrix_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser) as AuthUser;
-        setUser(parsedUser);
-      } catch (error) {
-        localStorage.removeItem('cyptrix_user');
+    if (!supabaseConfigured) {
+      // Check for stored auth session on mount
+      const storedUser = localStorage.getItem('cyptrix_user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser) as AuthUser;
+          setMockUser(parsedUser);
+        } catch (error) {
+          localStorage.removeItem('cyptrix_user');
+        }
       }
+      setMockIsLoading(false);
     }
-    setIsLoading(false);
-  }, []);
+  }, [supabaseConfigured]);
 
-  const login = async (credentials: LoginCredentials): Promise<boolean> => {
-    setIsLoading(true);
+  const mockLogin = async (credentials: LoginCredentials): Promise<boolean> => {
+    setMockIsLoading(true);
     
     try {
       // Simulate API delay
@@ -79,7 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         lastLogin: new Date().toISOString(),
       };
 
-      setUser(authUser);
+      setMockUser(authUser);
       localStorage.setItem('cyptrix_user', JSON.stringify(authUser));
       
       toast({
@@ -96,18 +106,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       return false;
     } finally {
-      setIsLoading(false);
+      setMockIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
+  const mockLogout = () => {
+    setMockUser(null);
     localStorage.removeItem('cyptrix_user');
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out",
     });
   };
+
+  // Use Supabase auth if configured, otherwise use mock auth
+  const user = supabaseConfigured ? supabaseAuth?.user || null : mockUser;
+  const login = supabaseConfigured && supabaseAuth?.login ? supabaseAuth.login : mockLogin;
+  const logout = supabaseConfigured && supabaseAuth?.logout ? supabaseAuth.logout : mockLogout;
+  const isLoading = supabaseConfigured ? supabaseAuth?.isLoading || false : mockIsLoading;
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>
