@@ -18,7 +18,7 @@ interface SignupData extends LoginCredentials {
   confirmPassword: string;
 }
 
-export const LoginForm: React.FC = () => {
+const LoginForm: React.FC = () => {
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
     password: '',
@@ -430,3 +430,5 @@ export const LoginForm: React.FC = () => {
     </div>
   );
 };
+
+export default LoginForm;
