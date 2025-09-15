@@ -43,7 +43,14 @@ export const DocumentUpload: React.FC = () => {
   }
 
   const handleFiles = async (files: File[]) => {
-    if (!user) return
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to upload documents",
+        variant: "destructive",
+      })
+      return
+    }
     
     if (!supabaseConfigured) {
       toast({
@@ -56,7 +63,8 @@ export const DocumentUpload: React.FC = () => {
     
     setUploading(true)
     
-    // Simulate upload for now
+    const { supabase } = await import('@/integrations/supabase/client')
+    
     for (const file of files) {
       try {
         // Validate file type
@@ -69,30 +77,49 @@ export const DocumentUpload: React.FC = () => {
           continue
         }
 
-        // Simulate upload process
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Upload file to storage
+        const fileExt = 'pdf'
+        const fileName = `${Date.now()}_${file.name}`
+        const filePath = `${user.userId}/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, file)
+
+        if (uploadError) {
+          throw uploadError
+        }
+
+        // Create document record in database
+        const { error: dbError } = await supabase
+          .from('documents')
+          .insert({
+            provider_id: user.userId,
+            filename: file.name,
+            file_path: filePath,
+            page_count: 1, // You might want to extract this from the PDF
+            file_size: file.size
+          })
+
+        if (dbError) {
+          // Clean up uploaded file if database insert fails
+          await supabase.storage.from('documents').remove([filePath])
+          throw dbError
+        }
 
         toast({
           title: "Upload Successful",
           description: `${file.name} has been uploaded successfully`,
         })
 
-        // Add mock data to uploaded files
-        const mockFile = {
-          id: Date.now() + Math.random(),
-          filename: file.name,
-          page_count: Math.floor(Math.random() * 50) + 1,
-          file_size: file.size,
-          uploaded_at: new Date().toISOString(),
-          status: 'UPLOADED'
-        }
-        setUploadedFiles(prev => [mockFile, ...prev])
+        // Refresh the uploaded files list
+        fetchUploadedFiles()
 
       } catch (error) {
         console.error('Upload error:', error)
         toast({
           title: "Upload Failed",
-          description: `Failed to upload ${file.name}`,
+          description: `Failed to upload ${file.name}: ${error.message}`,
           variant: "destructive",
         })
       }
@@ -100,6 +127,36 @@ export const DocumentUpload: React.FC = () => {
     
     setUploading(false)
   }
+
+  const fetchUploadedFiles = async () => {
+    if (!user || !supabaseConfigured) return
+
+    try {
+      const { supabase } = await import('@/integrations/supabase/client')
+      
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('provider_id', user.userId)
+        .order('uploaded_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching uploaded files:', error)
+        return
+      }
+
+      setUploadedFiles(data || [])
+    } catch (error) {
+      console.error('Error fetching uploaded files:', error)
+    }
+  }
+
+  // Fetch uploaded files on component mount
+  React.useEffect(() => {
+    if (user && supabaseConfigured) {
+      fetchUploadedFiles()
+    }
+  }, [user, supabaseConfigured])
 
   const getStatusColor = (status: string) => {
     switch (status) {

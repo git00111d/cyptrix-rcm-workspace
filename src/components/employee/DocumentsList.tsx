@@ -63,8 +63,46 @@ export const DocumentsList: React.FC = () => {
   }, [supabaseConfigured])
 
   const fetchDocuments = async () => {
-    // This would fetch from Supabase when configured
-    setIsLoading(false)
+    try {
+      const { supabase } = await import('@/integrations/supabase/client')
+      
+      // Fetch documents with provider profile information
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          *,
+          profiles!documents_provider_id_fkey (
+            name
+          )
+        `)
+        .order('uploaded_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching documents:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load documents",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const documentsWithProviderName = data?.map(doc => ({
+        ...doc,
+        provider_name: doc.profiles?.name || 'Unknown Provider'
+      })) || []
+
+      setDocuments(documentsWithProviderName)
+    } catch (error) {
+      console.error('Error fetching documents:', error)
+      toast({
+        title: "Error",
+        description: "Failed to connect to database",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleStartCoding = (documentId: string) => {
