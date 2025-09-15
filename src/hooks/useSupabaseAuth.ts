@@ -146,7 +146,10 @@ export const useSupabaseAuth = () => {
 
       if (data.user && data.session) {
         console.log('Login successful, returning true for user:', data.user.id)
-        // Don't set loading to false here - let the auth state change handler do it
+        
+        // Wait a brief moment for auth state to propagate
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         return true
       }
 
