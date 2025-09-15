@@ -16,22 +16,31 @@ export const useSupabaseAuth = () => {
 
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        await fetchUserProfile(session.user, session)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          await fetchUserProfile(session.user, session)
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
 
     getInitialSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, !!session?.user)
+      
       if (session?.user) {
         await fetchUserProfile(session.user, session)
       } else {
         setUser(null)
       }
+      
+      // Always set loading to false after auth state change
       setIsLoading(false)
     })
 
@@ -132,8 +141,13 @@ export const useSupabaseAuth = () => {
         return false
       }
 
-      if (data.user) {
+      if (data.user && data.session) {
         console.log('Login successful, user:', data.user.id)
+        
+        // Set user immediately and stop loading
+        await fetchUserProfile(data.user, data.session)
+        setIsLoading(false)
+        
         return true
       }
 
