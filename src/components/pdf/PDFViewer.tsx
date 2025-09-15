@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Configure PDF.js worker
@@ -24,6 +24,35 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Security: Disable right-click, keyboard shortcuts, and text selection
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable common shortcuts for copying, saving, printing
+      if (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'a' || e.key === 'c' || e.key === 'v')) {
+        e.preventDefault();
+        toast.error('This action is not allowed for secure documents');
+      }
+      // Disable F12, F5, Ctrl+Shift+I, etc.
+      if (e.key === 'F12' || e.key === 'F5' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+        e.preventDefault();
+        toast.error('Developer tools access is restricted');
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('selectstart', (e) => e.preventDefault());
+    document.addEventListener('dragstart', (e) => e.preventDefault());
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('selectstart', (e) => e.preventDefault());
+      document.removeEventListener('dragstart', (e) => e.preventDefault());
+    };
+  }, []);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -58,8 +87,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   };
 
   return (
-    <Card className={`p-4 ${className}`}>
+    <Card className={`p-4 ${className}`} style={{ userSelect: 'none' }}>
       <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-primary" />
+          <span className="text-xs text-muted-foreground font-medium">SECURE VIEW</span>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -97,7 +130,18 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         </div>
       </div>
 
-      <div className="border rounded-lg bg-muted/20 flex justify-center min-h-[600px] relative overflow-auto">
+      <div 
+        className="border rounded-lg bg-muted/20 flex justify-center min-h-[600px] relative overflow-auto"
+        style={{ 
+          userSelect: 'none', 
+          WebkitUserSelect: 'none', 
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
+          pointerEvents: 'auto'
+        }}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+      >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -109,11 +153,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           loading=""
+          options={{
+            // Disable text layer for security
+            disableRange: false,
+            disableStream: false,
+            disableAutoFetch: false,
+            disableFontFace: false,
+            // Additional security options
+            cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+            cMapPacked: true,
+          }}
         >
           <Page
             pageNumber={currentPage}
             scale={scale}
-            className="shadow-lg"
+            className="shadow-lg select-none"
             renderTextLayer={false}
             renderAnnotationLayer={false}
           />

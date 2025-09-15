@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Save } from 'lucide-react';
+import { X, Plus, Save, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { validateICD10Code, validateCPTCode, debounce } from '@/utils/codeValidation';
 
 interface PageCode {
   id?: string;
@@ -44,10 +45,30 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
   const [newCptCode, setNewCptCode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [icdValidation, setIcdValidation] = useState({ isValid: true, message: '' });
+  const [cptValidation, setCptValidation] = useState({ isValid: true, message: '' });
+  const [hasChanges, setHasChanges] = useState(false);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchPageCodes();
   }, [documentId, pageNumber]);
+
+  // Auto-save functionality with debounce
+  const debouncedAutoSave = useCallback(
+    debounce(async () => {
+      if (hasChanges && !isReadOnly) {
+        await handleSave(true); // Silent save
+      }
+    }, 3000), // Auto-save after 3 seconds of inactivity
+    [hasChanges, isReadOnly]
+  );
+
+  useEffect(() => {
+    if (hasChanges) {
+      debouncedAutoSave();
+    }
+  }, [pageCode, hasChanges, debouncedAutoSave]);
 
   const fetchPageCodes = async () => {
     try {
@@ -85,22 +106,44 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
   };
 
   const handleAddIcdCode = () => {
-    if (newIcdCode.trim() && !pageCode.icd_codes.includes(newIcdCode.trim())) {
+    const validation = validateICD10Code(newIcdCode);
+    if (!validation.isValid) {
+      setIcdValidation({ 
+        isValid: validation.isValid, 
+        message: validation.message || 'Invalid code format' 
+      });
+      return;
+    }
+    
+    if (newIcdCode.trim() && !pageCode.icd_codes.includes(newIcdCode.trim().toUpperCase())) {
       setPageCode(prev => ({
         ...prev,
-        icd_codes: [...prev.icd_codes, newIcdCode.trim()],
+        icd_codes: [...prev.icd_codes, newIcdCode.trim().toUpperCase()],
       }));
       setNewIcdCode('');
+      setIcdValidation({ isValid: true, message: '' });
+      setHasChanges(true);
     }
   };
 
   const handleAddCptCode = () => {
+    const validation = validateCPTCode(newCptCode);
+    if (!validation.isValid) {
+      setCptValidation({ 
+        isValid: validation.isValid, 
+        message: validation.message || 'Invalid code format' 
+      });
+      return;
+    }
+    
     if (newCptCode.trim() && !pageCode.cpt_codes.includes(newCptCode.trim())) {
       setPageCode(prev => ({
         ...prev,
         cpt_codes: [...prev.cpt_codes, newCptCode.trim()],
       }));
       setNewCptCode('');
+      setCptValidation({ isValid: true, message: '' });
+      setHasChanges(true);
     }
   };
 
@@ -109,6 +152,7 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
       ...prev,
       icd_codes: prev.icd_codes.filter(code => code !== codeToRemove),
     }));
+    setHasChanges(true);
   };
 
   const handleRemoveCptCode = (codeToRemove: string) => {
@@ -116,18 +160,48 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
       ...prev,
       cpt_codes: prev.cpt_codes.filter(code => code !== codeToRemove),
     }));
+    setHasChanges(true);
   };
 
   const handleNotesChange = (notes: string) => {
     setPageCode(prev => ({ ...prev, notes }));
+    setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  // Real-time validation for ICD codes
+  const handleIcdCodeChange = (value: string) => {
+    setNewIcdCode(value);
+    if (value.trim()) {
+      const validation = validateICD10Code(value);
+      setIcdValidation({ 
+        isValid: validation.isValid, 
+        message: validation.message || '' 
+      });
+    } else {
+      setIcdValidation({ isValid: true, message: '' });
+    }
+  };
+
+  // Real-time validation for CPT codes
+  const handleCptCodeChange = (value: string) => {
+    setNewCptCode(value);
+    if (value.trim()) {
+      const validation = validateCPTCode(value);
+      setCptValidation({ 
+        isValid: validation.isValid, 
+        message: validation.message || '' 
+      });
+    } else {
+      setCptValidation({ isValid: true, message: '' });
+    }
+  };
+
+  const handleSave = async (silent = false) => {
     try {
       setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error('You must be logged in to save codes');
+        if (!silent) toast.error('You must be logged in to save codes');
         return;
       }
 
@@ -148,14 +222,18 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
 
       if (error) {
         console.error('Error saving page codes:', error);
-        toast.error('Failed to save codes');
+        if (!silent) toast.error('Failed to save codes');
       } else {
-        toast.success(`Codes saved for page ${pageNumber}`);
+        setHasChanges(false);
+        setLastAutoSave(new Date());
+        if (!silent) {
+          toast.success(`Codes saved for page ${pageNumber}`);
+        }
         await fetchPageCodes(); // Refresh to get the updated data
       }
     } catch (error) {
       console.error('Error saving page codes:', error);
-      toast.error('Failed to save codes');
+      if (!silent) toast.error('Failed to save codes');
     } finally {
       setIsSaving(false);
     }
@@ -177,11 +255,24 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
     <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Page {pageNumber} Coding</span>
+          <div className="flex items-center gap-2">
+            <span>Page {pageNumber} Coding</span>
+            {hasChanges && (
+              <Badge variant="outline" className="text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                Unsaved changes
+              </Badge>
+            )}
+            {lastAutoSave && (
+              <span className="text-xs text-muted-foreground">
+                Auto-saved: {lastAutoSave.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
           {!isReadOnly && (
             <Button
-              onClick={handleSave}
-              disabled={isSaving}
+              onClick={() => handleSave(false)}
+              disabled={isSaving || !hasChanges}
               size="sm"
             >
               <Save className="h-4 w-4 mr-2" />
@@ -212,20 +303,38 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
               ))}
             </div>
             {!isReadOnly && (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter ICD-10 code"
-                  value={newIcdCode}
-                  onChange={(e) => setNewIcdCode(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddIcdCode()}
-                />
-                <Button
-                  onClick={handleAddIcdCode}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Enter ICD-10 code (e.g., A00.0)"
+                      value={newIcdCode}
+                      onChange={(e) => handleIcdCodeChange(e.target.value.toUpperCase())}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddIcdCode()}
+                      className={!icdValidation.isValid ? 'border-destructive' : ''}
+                    />
+                    {!icdValidation.isValid && (
+                      <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                        <XCircle className="h-3 w-3" />
+                        {icdValidation.message}
+                      </p>
+                    )}
+                    {icdValidation.isValid && newIcdCode.trim() && (
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Valid ICD-10 format
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleAddIcdCode}
+                    size="sm"
+                    variant="outline"
+                    disabled={!icdValidation.isValid || !newIcdCode.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -251,20 +360,38 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
               ))}
             </div>
             {!isReadOnly && (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter CPT code"
-                  value={newCptCode}
-                  onChange={(e) => setNewCptCode(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddCptCode()}
-                />
-                <Button
-                  onClick={handleAddCptCode}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Enter CPT code (e.g., 99213)"
+                      value={newCptCode}
+                      onChange={(e) => handleCptCodeChange(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddCptCode()}
+                      className={!cptValidation.isValid ? 'border-destructive' : ''}
+                    />
+                    {!cptValidation.isValid && (
+                      <p className="text-xs text-destructive mt-1 flex items-center gap-1">
+                        <XCircle className="h-3 w-3" />
+                        {cptValidation.message}
+                      </p>
+                    )}
+                    {cptValidation.isValid && newCptCode.trim() && (
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Valid CPT format
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleAddCptCode}
+                    size="sm"
+                    variant="outline"
+                    disabled={!cptValidation.isValid || !newCptCode.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
