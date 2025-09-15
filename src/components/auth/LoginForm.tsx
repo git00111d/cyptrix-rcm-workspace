@@ -41,12 +41,17 @@ export const LoginForm: React.FC = () => {
     
     try {
       const success = await login(credentials);
+      console.log('Login success:', success);
+      
       if (success) {
         toast({
           title: "Login Successful",
           description: "Welcome back!",
         });
-        navigate('/dashboard');
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
       } else {
         toast({
           title: "Login Failed", 
@@ -55,14 +60,15 @@ export const LoginForm: React.FC = () => {
         });
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Login Error",
         description: "An unexpected error occurred",
         variant: "destructive", 
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {

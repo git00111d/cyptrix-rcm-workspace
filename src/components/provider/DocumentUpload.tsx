@@ -95,6 +95,8 @@ export const DocumentUpload: React.FC = () => {
           .from('documents')
           .getPublicUrl(filePath)
 
+        console.log('Generated public URL:', publicUrl)
+
         // Create document record in database
         const { error: dbError } = await supabase
           .from('documents')
@@ -107,9 +109,12 @@ export const DocumentUpload: React.FC = () => {
             file_size: file.size
           })
 
+        console.log('Database insert result:', { dbError })
+
         if (dbError) {
           // Clean up uploaded file if database insert fails
           await supabase.storage.from('documents').remove([filePath])
+          console.error('Database insert failed:', dbError)
           throw dbError
         }
 
