@@ -123,8 +123,10 @@ export const useSupabaseAuth = () => {
     }
   }
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (credentials: LoginCredentials): Promise<boolean> => {
     if (!supabase) return false
+    
+    setIsLoading(true)
     
     try {
       console.log('Attempting login with:', credentials.email)
@@ -138,17 +140,21 @@ export const useSupabaseAuth = () => {
 
       if (error) {
         console.error('Login error:', error.message)
+        setIsLoading(false)
         return false
       }
 
       if (data.user && data.session) {
         console.log('Login successful, user:', data.user.id)
+        // Don't set loading to false here - let the auth state change handler do it
         return true
       }
 
+      setIsLoading(false)
       return false
     } catch (error) {
       console.error('Login exception:', error)
+      setIsLoading(false)
       return false
     }
   }
