@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { FileText, Eye, Code, AlertCircle } from 'lucide-react'
+import { FileText, Eye, Code, AlertCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from '@/hooks/use-toast'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -12,6 +12,7 @@ interface Document {
   provider_id: string
   filename: string
   file_path: string
+  file_url?: string
   page_count: number
   file_size: number
   uploaded_at: string
@@ -60,6 +61,18 @@ export const DocumentsList: React.FC = () => {
     }
 
     fetchDocuments()
+  }, [supabaseConfigured])
+
+  // Auto-refresh documents every 30 seconds if Supabase is configured
+  useEffect(() => {
+    if (!supabaseConfigured) return
+
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing documents list...')
+      fetchDocuments()
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [supabaseConfigured])
 
   const fetchDocuments = async () => {
@@ -180,10 +193,29 @@ export const DocumentsList: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Available Documents</CardTitle>
-          <CardDescription>
-            Click "Start Coding" to open a document in the coding workspace
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Available Documents</CardTitle>
+              <CardDescription>
+                Click "Start Coding" to open a document in the coding workspace
+              </CardDescription>
+            </div>
+            {supabaseConfigured && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setIsLoading(true)
+                  fetchDocuments()
+                }}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {documents.length === 0 ? (
@@ -211,6 +243,16 @@ export const DocumentsList: React.FC = () => {
                     <Badge className={getStatusColor(doc.status)}>
                       {doc.status.replace(/_/g, ' ')}
                     </Badge>
+                    {doc.file_url && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => window.open(doc.file_url, '_blank')}
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View PDF
+                      </Button>
+                    )}
                     <Button 
                       onClick={() => handleStartCoding(doc.id)}
                       className="flex items-center gap-2"
