@@ -106,7 +106,8 @@ export const DocumentUpload: React.FC = () => {
             file_path: filePath,
             file_url: publicUrl,
             page_count: 1, // You might want to extract this from the PDF
-            file_size: file.size
+            file_size: file.size,
+            status: 'UPLOADED'
           })
 
         console.log('Database insert result:', { dbError })
