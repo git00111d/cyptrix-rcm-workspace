@@ -52,7 +52,7 @@ export const useSupabaseAuth = () => {
 
       console.log('Profile fetch result:', { profile, error })
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error)
         return
       }
@@ -85,36 +85,19 @@ export const useSupabaseAuth = () => {
 
         if (insertError) {
           console.error('Error creating profile:', insertError)
-          // Still set user even if profile creation fails
-          setUser({
-            userId: authUser.id,
-            name: userData.name || authUser.email?.split('@')[0] || 'User',
-            email: authUser.email || '',
-            role: (userData.role as AuthUser['role']) || 'PROVIDER',
-            active: true,
-            createdAt: authUser.created_at || new Date().toISOString(),
-            token: authSession?.access_token || ''
-          })
-        } else {
-          // Fetch the newly created profile
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', authUser.id)
-            .single()
-
-          if (newProfile) {
-            setUser({
-              userId: newProfile.id,
-              name: newProfile.name,
-              email: newProfile.email,
-              role: newProfile.role as AuthUser['role'],
-              active: newProfile.active,
-              createdAt: newProfile.created_at,
-              token: authSession?.access_token || ''
-            })
-          }
         }
+        
+        // Always set user from auth data if no profile exists
+        console.log('Setting user from auth metadata:', userData)
+        setUser({
+          userId: authUser.id,
+          name: userData.name || authUser.email?.split('@')[0] || 'User',
+          email: authUser.email || '',
+          role: (userData.role as AuthUser['role']) || 'PROVIDER',
+          active: true,
+          createdAt: authUser.created_at || new Date().toISOString(),
+          token: authSession?.access_token || ''
+        })
       }
     } catch (error) {
       console.error('Exception in fetchUserProfile:', error)
@@ -135,11 +118,33 @@ export const useSupabaseAuth = () => {
   const login = async (credentials: LoginCredentials) => {
     if (!supabase) return false
     
-    const { error } = await supabase.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
-    })
-    return !error
+    try {
+      console.log('Attempting login with:', credentials.email)
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      })
+
+      console.log('Login result:', { data, error })
+
+      if (error) {
+        console.error('Login error:', error)
+        return false
+      }
+
+      if (data.user) {
+        console.log('Login successful, user:', data.user.id)
+        // Wait a bit for the auth state change to trigger and profile to load
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return true
+      }
+
+      return false
+    } catch (error) {
+      console.error('Login exception:', error)
+      return false
+    }
   }
 
   const logout = async () => {
