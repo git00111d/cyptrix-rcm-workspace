@@ -43,18 +43,25 @@ export const LoginForm: React.FC = () => {
     setErrorMsg('');
 
     try {
+      console.log('LoginForm: Calling login function...');
       const success = await login(credentials);
+      console.log('LoginForm: Login function returned:', success);
 
       if (success) {
+        console.log('LoginForm: Login success, showing toast and navigating...');
         toast({
           title: 'Login Successful',
           description: 'Welcome back!',
         });
+        // Don't set loading to false - let auth context handle it
         // Small delay to ensure auth state is updated
         setTimeout(() => {
+          console.log('LoginForm: Navigating to dashboard...');
           navigate('/dashboard');
         }, 150);
+        return; // Don't execute finally block for successful login
       } else {
+        console.log('LoginForm: Login failed');
         setErrorMsg('Invalid email or password');
         toast({
           title: 'Login Failed',
@@ -63,7 +70,7 @@ export const LoginForm: React.FC = () => {
         });
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('LoginForm: Login error:', error);
       setErrorMsg(error.message || 'An unexpected error occurred');
       toast({
         title: 'Login Error',
@@ -71,6 +78,8 @@ export const LoginForm: React.FC = () => {
         variant: 'destructive',
       });
     } finally {
+      // Only set loading to false for failures
+      console.log('LoginForm: Setting loading to false in finally block');
       setIsLoading(false);
     }
   };

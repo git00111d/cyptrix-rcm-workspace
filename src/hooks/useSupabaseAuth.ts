@@ -145,11 +145,12 @@ export const useSupabaseAuth = () => {
       }
 
       if (data.user && data.session) {
-        console.log('Login successful, user:', data.user.id)
+        console.log('Login successful, returning true for user:', data.user.id)
         // Don't set loading to false here - let the auth state change handler do it
         return true
       }
 
+      console.log('Login failed - no user or session')
       setIsLoading(false)
       return false
     } catch (error) {
