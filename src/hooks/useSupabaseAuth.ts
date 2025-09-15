@@ -143,11 +143,6 @@ export const useSupabaseAuth = () => {
 
       if (data.user && data.session) {
         console.log('Login successful, user:', data.user.id)
-        
-        // Set user immediately and stop loading
-        await fetchUserProfile(data.user, data.session)
-        setIsLoading(false)
-        
         return true
       }
 
