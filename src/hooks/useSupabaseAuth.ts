@@ -39,7 +39,13 @@ export const useSupabaseAuth = () => {
   }, [])
 
   const fetchUserProfile = async (authUser: User, authSession?: any) => {
-    if (!supabase) return
+    console.log('fetchUserProfile called with user:', authUser.id)
+    console.log('supabase client exists:', !!supabase)
+    
+    if (!supabase) {
+      console.error('No supabase client available')
+      return
+    }
     
     try {
       console.log('Fetching profile for user:', authUser.id)
@@ -50,11 +56,11 @@ export const useSupabaseAuth = () => {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      console.log('Profile fetch result:', { profile, error })
+      console.log('Profile fetch completed:', { profile, error })
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error)
-        return
+        // Continue with fallback instead of returning
       }
 
       if (profile) {
@@ -69,26 +75,12 @@ export const useSupabaseAuth = () => {
           token: authSession?.access_token || ''
         })
       } else {
-        console.log('No profile found, creating from auth user data')
-        // If no profile exists, create one from the auth user metadata
+        console.log('No profile found, using auth user metadata')
         const userData = authUser.user_metadata || {}
         
-        // Try to create the profile
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email || '',
-            name: userData.name || authUser.email?.split('@')[0] || 'User',
-            role: userData.role || 'PROVIDER'
-          })
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError)
-        }
+        console.log('Auth user metadata:', userData)
         
-        // Always set user from auth data if no profile exists
-        console.log('Setting user from auth metadata:', userData)
+        // Set user immediately from auth metadata
         setUser({
           userId: authUser.id,
           name: userData.name || authUser.email?.split('@')[0] || 'User',
@@ -98,10 +90,29 @@ export const useSupabaseAuth = () => {
           createdAt: authUser.created_at || new Date().toISOString(),
           token: authSession?.access_token || ''
         })
+        
+        console.log('User set from metadata, attempting to create profile...')
+        
+        // Try to create profile in background (don't wait for it)
+        supabase
+          .from('profiles')
+          .insert({
+            id: authUser.id,
+            email: authUser.email || '',
+            name: userData.name || authUser.email?.split('@')[0] || 'User',
+            role: userData.role || 'PROVIDER'
+          })
+          .then(({ error: insertError }) => {
+            if (insertError) {
+              console.log('Profile creation failed (this is OK):', insertError.message)
+            } else {
+              console.log('Profile created successfully')
+            }
+          })
       }
     } catch (error) {
       console.error('Exception in fetchUserProfile:', error)
-      // Fallback: set user from auth data even if profile operations fail
+      // Fallback: set user from auth data
       const userData = authUser.user_metadata || {}
       setUser({
         userId: authUser.id,
