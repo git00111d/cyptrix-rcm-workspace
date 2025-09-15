@@ -49,10 +49,16 @@ const menuItems: MenuItem[] = [
     roles: ['PROVIDER'],
   },
   {
+    title: 'Documents',
+    url: '/documents',
+    icon: FileText,
+    roles: ['EMPLOYEE', 'AUDITOR'],
+  },
+  {
     title: 'Coding Workspace',
     url: '/coding',
     icon: Code,
-    roles: ['EMPLOYEE'],
+    roles: ['EMPLOYEE', 'AUDITOR'],
   },
   {
     title: 'Audit Queue',

@@ -12,7 +12,8 @@ import { ProviderDashboard } from "@/pages/dashboards/ProviderDashboard";
 import { EmployeeDashboard } from "@/pages/dashboards/EmployeeDashboard";
 import { AuditorDashboard } from "@/pages/dashboards/AuditorDashboard";
 import { AdminDashboard } from "@/pages/dashboards/AdminDashboard";
-import { UploadDocuments } from "@/pages/UploadDocuments";
+import { DocumentUpload } from "@/components/provider/DocumentUpload";
+import { DocumentsList } from "@/components/employee/DocumentsList";
 import { CodingWorkspace } from "@/pages/CodingWorkspace";
 import { AuditQueue } from "@/pages/AuditQueue";
 import { Claims } from "@/pages/Claims";
@@ -40,11 +41,16 @@ const App = () => (
               <Route path="/dashboard" element={<DashboardRouter />} />
               <Route path="/upload" element={
                 <ProtectedRoute allowedRoles={['PROVIDER']}>
-                  <UploadDocuments />
+                  <DocumentUpload />
+                </ProtectedRoute>
+              } />
+              <Route path="/documents" element={
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'AUDITOR']}>
+                  <DocumentsList />
                 </ProtectedRoute>
               } />
               <Route path="/coding" element={
-                <ProtectedRoute allowedRoles={['EMPLOYEE']}>
+                <ProtectedRoute allowedRoles={['EMPLOYEE', 'AUDITOR']}>
                   <CodingWorkspace />
                 </ProtectedRoute>
               } />
@@ -85,9 +91,9 @@ const DashboardRouter = () => {
   
   switch (user.role) {
     case 'PROVIDER':
-      return <ProviderDashboard />;
+      return <Navigate to="/upload" replace />;
     case 'EMPLOYEE':
-      return <EmployeeDashboard />;
+      return <Navigate to="/documents" replace />;
     case 'AUDITOR':
       return <AuditorDashboard />;
     case 'ADMIN':
