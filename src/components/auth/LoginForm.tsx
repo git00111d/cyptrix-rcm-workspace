@@ -39,9 +39,27 @@ export const LoginForm: React.FC = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    const success = await login(credentials);
-    if (success) {
-      navigate('/dashboard');
+    try {
+      const success = await login(credentials);
+      if (success) {
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+        });
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: "Login Failed", 
+          description: "Invalid email or password",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Login Error",
+        description: "An unexpected error occurred",
+        variant: "destructive", 
+      });
     }
     
     setIsLoading(false);
@@ -76,6 +94,7 @@ export const LoginForm: React.FC = () => {
         email: signupData.email,
         password: signupData.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             name: signupData.name,
             role: signupData.role,
@@ -131,6 +150,7 @@ export const LoginForm: React.FC = () => {
         email: demo.email,
         password: demo.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
             name: demo.role,
             role: demo.role.toUpperCase(),

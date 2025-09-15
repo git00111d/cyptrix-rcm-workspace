@@ -47,6 +47,23 @@ export const useSupabaseAuth = () => {
       return
     }
     
+    // Set user immediately from auth metadata to unblock login
+    const userData = authUser.user_metadata || {}
+    console.log('Auth user metadata:', userData)
+    
+    setUser({
+      userId: authUser.id,
+      name: userData.name || authUser.email?.split('@')[0] || 'User',
+      email: authUser.email || '',
+      role: (userData.role as AuthUser['role']) || 'PROVIDER',
+      active: true,
+      createdAt: authUser.created_at || new Date().toISOString(),
+      token: authSession?.access_token || ''
+    })
+    
+    console.log('User set immediately from auth data')
+    
+    // Try to fetch/create profile in background (don't block login)
     try {
       console.log('Fetching profile for user:', authUser.id)
       
@@ -60,11 +77,10 @@ export const useSupabaseAuth = () => {
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error)
-        // Continue with fallback instead of returning
       }
 
       if (profile) {
-        console.log('Setting user from profile:', profile)
+        console.log('Updating user from profile:', profile)
         setUser({
           userId: profile.id,
           name: profile.name,
@@ -75,26 +91,10 @@ export const useSupabaseAuth = () => {
           token: authSession?.access_token || ''
         })
       } else {
-        console.log('No profile found, using auth user metadata')
-        const userData = authUser.user_metadata || {}
+        console.log('No profile found, attempting to create one...')
         
-        console.log('Auth user metadata:', userData)
-        
-        // Set user immediately from auth metadata
-        setUser({
-          userId: authUser.id,
-          name: userData.name || authUser.email?.split('@')[0] || 'User',
-          email: authUser.email || '',
-          role: (userData.role as AuthUser['role']) || 'PROVIDER',
-          active: true,
-          createdAt: authUser.created_at || new Date().toISOString(),
-          token: authSession?.access_token || ''
-        })
-        
-        console.log('User set from metadata, attempting to create profile...')
-        
-        // Try to create profile in background (don't wait for it)
-        supabase
+        // Try to create profile
+        const { error: insertError } = await supabase
           .from('profiles')
           .insert({
             id: authUser.id,
@@ -102,27 +102,15 @@ export const useSupabaseAuth = () => {
             name: userData.name || authUser.email?.split('@')[0] || 'User',
             role: userData.role || 'PROVIDER'
           })
-          .then(({ error: insertError }) => {
-            if (insertError) {
-              console.log('Profile creation failed (this is OK):', insertError.message)
-            } else {
-              console.log('Profile created successfully')
-            }
-          })
+          
+        if (insertError) {
+          console.log('Profile creation failed (user may already exist):', insertError.message)
+        } else {
+          console.log('Profile created successfully')
+        }
       }
     } catch (error) {
-      console.error('Exception in fetchUserProfile:', error)
-      // Fallback: set user from auth data
-      const userData = authUser.user_metadata || {}
-      setUser({
-        userId: authUser.id,
-        name: userData.name || authUser.email?.split('@')[0] || 'User',
-        email: authUser.email || '',
-        role: (userData.role as AuthUser['role']) || 'PROVIDER',
-        active: true,
-        createdAt: authUser.created_at || new Date().toISOString(),
-        token: authSession?.access_token || ''
-      })
+      console.error('Exception in profile operations (this is OK, user is still logged in):', error)
     }
   }
 
@@ -140,14 +128,12 @@ export const useSupabaseAuth = () => {
       console.log('Login result:', { data, error })
 
       if (error) {
-        console.error('Login error:', error)
+        console.error('Login error:', error.message)
         return false
       }
 
       if (data.user) {
         console.log('Login successful, user:', data.user.id)
-        // Wait a bit for the auth state change to trigger and profile to load
-        await new Promise(resolve => setTimeout(resolve, 1000))
         return true
       }
 
