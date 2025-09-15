@@ -14,54 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      document_codes: {
-        Row: {
-          coded_at: string | null
-          cpt_codes: string[] | null
-          document_id: string
-          employee_id: string
-          icd10_codes: string[] | null
-          id: string
-          notes: string | null
-          page_number: number
-        }
-        Insert: {
-          coded_at?: string | null
-          cpt_codes?: string[] | null
-          document_id: string
-          employee_id: string
-          icd10_codes?: string[] | null
-          id?: string
-          notes?: string | null
-          page_number: number
-        }
-        Update: {
-          coded_at?: string | null
-          cpt_codes?: string[] | null
-          document_id?: string
-          employee_id?: string
-          icd10_codes?: string[] | null
-          id?: string
-          notes?: string | null
-          page_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_codes_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_codes_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       documents: {
         Row: {
           file_path: string
@@ -105,6 +57,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      page_codes: {
+        Row: {
+          cpt_codes: string[] | null
+          created_at: string | null
+          created_by: string
+          document_id: string
+          icd_codes: string[] | null
+          id: string
+          notes: string | null
+          page_number: number
+          updated_at: string | null
+        }
+        Insert: {
+          cpt_codes?: string[] | null
+          created_at?: string | null
+          created_by: string
+          document_id: string
+          icd_codes?: string[] | null
+          id?: string
+          notes?: string | null
+          page_number: number
+          updated_at?: string | null
+        }
+        Update: {
+          cpt_codes?: string[] | null
+          created_at?: string | null
+          created_by?: string
+          document_id?: string
+          icd_codes?: string[] | null
+          id?: string
+          notes?: string | null
+          page_number?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
