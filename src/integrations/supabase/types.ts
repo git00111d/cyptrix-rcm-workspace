@@ -66,6 +66,7 @@ export type Database = {
         Row: {
           file_path: string
           file_size: number
+          file_url: string | null
           filename: string
           id: string
           page_count: number
@@ -76,6 +77,7 @@ export type Database = {
         Insert: {
           file_path: string
           file_size: number
+          file_url?: string | null
           filename: string
           id?: string
           page_count: number
@@ -86,6 +88,7 @@ export type Database = {
         Update: {
           file_path?: string
           file_size?: number
+          file_url?: string | null
           filename?: string
           id?: string
           page_count?: number

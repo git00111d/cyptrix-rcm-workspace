@@ -77,6 +77,8 @@ export const DocumentsList: React.FC = () => {
         `)
         .order('uploaded_at', { ascending: false })
 
+      console.log('Documents fetch result:', { data, error })
+
       if (error) {
         console.error('Error fetching documents:', error)
         toast({
@@ -92,6 +94,7 @@ export const DocumentsList: React.FC = () => {
         provider_name: doc.profiles?.name || 'Unknown Provider'
       })) || []
 
+      console.log('Processed documents:', documentsWithProviderName)
       setDocuments(documentsWithProviderName)
     } catch (error) {
       console.error('Error fetching documents:', error)

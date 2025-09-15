@@ -90,6 +90,11 @@ export const DocumentUpload: React.FC = () => {
           throw uploadError
         }
 
+        // Get the public URL for the uploaded file
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(filePath)
+
         // Create document record in database
         const { error: dbError } = await supabase
           .from('documents')
@@ -97,6 +102,7 @@ export const DocumentUpload: React.FC = () => {
             provider_id: user.userId,
             filename: file.name,
             file_path: filePath,
+            file_url: publicUrl,
             page_count: 1, // You might want to extract this from the PDF
             file_size: file.size
           })
@@ -112,8 +118,8 @@ export const DocumentUpload: React.FC = () => {
           description: `${file.name} has been uploaded successfully`,
         })
 
-        // Refresh the uploaded files list
-        fetchUploadedFiles()
+        // Refresh the uploaded files list immediately
+        await fetchUploadedFiles()
 
       } catch (error) {
         console.error('Upload error:', error)
@@ -134,28 +140,46 @@ export const DocumentUpload: React.FC = () => {
     try {
       const { supabase } = await import('@/integrations/supabase/client')
       
+      console.log('Fetching uploaded files for user:', user.userId)
+      
       const { data, error } = await supabase
         .from('documents')
         .select('*')
         .eq('provider_id', user.userId)
         .order('uploaded_at', { ascending: false })
 
+      console.log('Uploaded files fetch result:', { data, error })
+
       if (error) {
         console.error('Error fetching uploaded files:', error)
         return
       }
 
+      console.log('Setting uploaded files:', data)
       setUploadedFiles(data || [])
     } catch (error) {
       console.error('Error fetching uploaded files:', error)
     }
   }
 
-  // Fetch uploaded files on component mount
+  // Fetch uploaded files on component mount and when user changes
   React.useEffect(() => {
     if (user && supabaseConfigured) {
+      console.log('Component mounted, fetching uploaded files for user:', user.userId)
       fetchUploadedFiles()
     }
+  }, [user, supabaseConfigured])
+
+  // Auto-refresh files every 30 seconds if user is active
+  React.useEffect(() => {
+    if (!user || !supabaseConfigured) return
+
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing uploaded files...')
+      fetchUploadedFiles()
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [user, supabaseConfigured])
 
   const getStatusColor = (status: string) => {
