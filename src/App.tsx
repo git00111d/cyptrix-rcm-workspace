@@ -15,6 +15,7 @@ import { AdminDashboard } from "@/pages/dashboards/AdminDashboard";
 import { DocumentUpload } from "@/components/provider/DocumentUpload";
 import { DocumentsList } from "@/components/employee/DocumentsList";
 import { CodingWorkspace } from "@/pages/CodingWorkspace";
+import { PDFCodingWorkspace } from "@/pages/PDFCodingWorkspace";
 import { AuditQueue } from "@/pages/AuditQueue";
 import { Claims } from "@/pages/Claims";
 import { Productivity } from "@/pages/Productivity";
@@ -54,6 +55,11 @@ const App = () => (
                   <CodingWorkspace />
                 </ProtectedRoute>
               } />
+              <Route path="/pdf-coding/:documentId" element={
+                <ProtectedRoute allowedRoles={['PROVIDER', 'EMPLOYEE', 'AUDITOR']}>
+                  <PDFCodingWorkspace />
+                </ProtectedRoute>
+              } />
               <Route path="/audit" element={
                 <ProtectedRoute allowedRoles={['AUDITOR']}>
                   <AuditQueue />
@@ -91,9 +97,9 @@ const DashboardRouter = () => {
   
   switch (user.role) {
     case 'PROVIDER':
-      return <Navigate to="/upload" replace />;
+      return <ProviderDashboard />;
     case 'EMPLOYEE':
-      return <Navigate to="/documents" replace />;
+      return <EmployeeDashboard />;
     case 'AUDITOR':
       return <AuditorDashboard />;
     case 'ADMIN':

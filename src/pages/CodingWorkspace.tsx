@@ -98,10 +98,10 @@ export const CodingWorkspace: React.FC = () => {
       const { supabase } = await import('@/integrations/supabase/client');
       
       const { data, error } = await supabase
-        .from('document_codes')
+        .from('page_codes')
         .select('*')
         .eq('document_id', docId)
-        .eq('employee_id', user.userId)
+        .eq('created_by', user.userId)
         .eq('page_number', currentPage)
         .maybeSingle();
 
@@ -115,7 +115,7 @@ export const CodingWorkspace: React.FC = () => {
           id: data.id,
           document_id: data.document_id,
           page_number: data.page_number,
-          icd10_codes: data.icd10_codes || [],
+          icd10_codes: data.icd_codes || [],
           cpt_codes: data.cpt_codes || [],
           notes: data.notes || ''
         });
@@ -171,9 +171,9 @@ export const CodingWorkspace: React.FC = () => {
 
       const codeData = {
         document_id: docId,
-        employee_id: user.userId,
+        created_by: user.userId,
         page_number: currentPage,
-        icd10_codes: codes.icd10_codes,
+        icd_codes: codes.icd10_codes,
         cpt_codes: codes.cpt_codes,
         notes: codes.notes
       };
@@ -181,7 +181,7 @@ export const CodingWorkspace: React.FC = () => {
       if (codes.id) {
         // Update existing codes
         const { error } = await supabase
-          .from('document_codes')
+          .from('page_codes')
           .update(codeData)
           .eq('id', codes.id);
 
@@ -189,7 +189,7 @@ export const CodingWorkspace: React.FC = () => {
       } else {
         // Insert new codes
         const { data, error } = await supabase
-          .from('document_codes')
+          .from('page_codes')
           .insert(codeData)
           .select()
           .single();
