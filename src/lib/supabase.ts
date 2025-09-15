@@ -1,20 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-// Debug environment variables
-console.log('Supabase URL:', supabaseUrl ? 'Set' : 'Not set')
-console.log('Supabase Anon Key:', supabaseAnonKey ? 'Set' : 'Not set')
-
-// Only create client if both URL and key are available
-export const supabase = supabaseUrl && supabaseAnonKey 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null
+// Import the configured Supabase client
+export { supabase } from '@/integrations/supabase/client'
 
 // Helper function to check if Supabase is configured
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey)
+  return true // Since we have the integrated client, it's always configured
 }
 
 export type Database = {

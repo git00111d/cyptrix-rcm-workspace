@@ -52,7 +52,7 @@ export const useSupabaseAuth = () => {
         userId: profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role,
+        role: profile.role as AuthUser['role'],
         active: profile.active,
         createdAt: profile.created_at,
         token: authSession?.access_token || ''
