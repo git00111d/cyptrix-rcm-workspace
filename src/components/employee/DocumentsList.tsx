@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { FileText, Eye, Code, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from '@/hooks/use-toast'
+import { isSupabaseConfigured } from '@/lib/supabase'
 
 interface Document {
   id: string
@@ -24,7 +25,7 @@ export const DocumentsList: React.FC = () => {
   const navigate = useNavigate()
 
   // Check if Supabase is configured
-  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+  const supabaseConfigured = isSupabaseConfigured()
 
   useEffect(() => {
     if (!supabaseConfigured) {

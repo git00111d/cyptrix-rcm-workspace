@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { AuthUser, LoginCredentials } from '@/types/user'
 
 export const useSupabaseAuth = () => {
@@ -9,7 +9,7 @@ export const useSupabaseAuth = () => {
 
   useEffect(() => {
     // Only proceed if Supabase is configured
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured() || !supabase) {
       setIsLoading(false)
       return
     }
@@ -39,6 +39,8 @@ export const useSupabaseAuth = () => {
   }, [])
 
   const fetchUserProfile = async (authUser: User, authSession?: any) => {
+    if (!supabase) return
+    
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -59,6 +61,8 @@ export const useSupabaseAuth = () => {
   }
 
   const login = async (credentials: LoginCredentials) => {
+    if (!supabase) return false
+    
     const { error } = await supabase.auth.signInWithPassword({
       email: credentials.email,
       password: credentials.password,
@@ -67,6 +71,8 @@ export const useSupabaseAuth = () => {
   }
 
   const logout = async () => {
+    if (!supabase) return
+    
     await supabase.auth.signOut()
     setUser(null)
   }

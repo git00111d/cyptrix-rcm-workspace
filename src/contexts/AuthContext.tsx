@@ -3,6 +3,7 @@ import { AuthUser, LoginCredentials, User } from '@/types/user';
 import { mockUsers } from '@/data/mockData';
 import { toast } from '@/hooks/use-toast';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -27,7 +28,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if Supabase is properly configured
-  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseConfigured = isSupabaseConfigured();
   
   // Use Supabase auth if configured, otherwise fall back to mock auth
   const supabaseAuth = supabaseConfigured ? useSupabaseAuth() : null;

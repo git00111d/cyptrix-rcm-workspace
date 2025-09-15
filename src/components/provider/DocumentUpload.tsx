@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Upload, FileText, CheckCircle, Clock, Shield, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
+import { isSupabaseConfigured } from '@/lib/supabase'
 
 export const DocumentUpload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false)
@@ -13,7 +14,7 @@ export const DocumentUpload: React.FC = () => {
   const { user } = useAuth()
 
   // Check if Supabase is configured
-  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+  const supabaseConfigured = isSupabaseConfigured()
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
