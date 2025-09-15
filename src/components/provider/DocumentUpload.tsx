@@ -97,6 +97,8 @@ export const DocumentUpload: React.FC = () => {
 
         console.log('Generated public URL:', publicUrl)
 
+        console.log('Generated public URL:', publicUrl)
+
         // Create document record in database
         const { error: dbError } = await supabase
           .from('documents')
@@ -124,8 +126,12 @@ export const DocumentUpload: React.FC = () => {
           description: `${file.name} has been uploaded successfully`,
         })
 
+        console.log('Document inserted successfully, refreshing list...')
+
         // Refresh the uploaded files list immediately
         await fetchUploadedFiles()
+
+        console.log('Files list refreshed after upload')
 
       } catch (error) {
         console.error('Upload error:', error)
