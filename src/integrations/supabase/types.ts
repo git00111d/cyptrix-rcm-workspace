@@ -14,7 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      document_codes: {
+        Row: {
+          coded_at: string | null
+          cpt_codes: string[] | null
+          document_id: string
+          employee_id: string
+          icd10_codes: string[] | null
+          id: string
+          notes: string | null
+          page_number: number
+        }
+        Insert: {
+          coded_at?: string | null
+          cpt_codes?: string[] | null
+          document_id: string
+          employee_id: string
+          icd10_codes?: string[] | null
+          id?: string
+          notes?: string | null
+          page_number: number
+        }
+        Update: {
+          coded_at?: string | null
+          cpt_codes?: string[] | null
+          document_id?: string
+          employee_id?: string
+          icd10_codes?: string[] | null
+          id?: string
+          notes?: string | null
+          page_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_codes_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_codes_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          file_path: string
+          file_size: number
+          filename: string
+          id: string
+          page_count: number
+          provider_id: string
+          status: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          file_path: string
+          file_size: number
+          filename: string
+          id?: string
+          page_count: number
+          provider_id: string
+          status?: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          file_path?: string
+          file_size?: number
+          filename?: string
+          id?: string
+          page_count?: number
+          provider_id?: string
+          status?: string
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          email: string
+          id: string
+          name: string
+          role: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
