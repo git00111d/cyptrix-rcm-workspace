@@ -14,6 +14,7 @@ import {
   RotateCw
 } from 'lucide-react';
 import { PDFViewer } from '@/components/pdf/PDFViewer';
+import { pdfjs } from 'react-pdf';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,46 +50,68 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
 
   // Memoize PDF options to prevent unnecessary reloads
   const pdfOptions = useMemo(() => ({
-    disableRange: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    disableFontFace: true,
+    disableRange: false,
+    disableStream: false,
+    disableAutoFetch: false,
+    disableFontFace: false,
+    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/cmaps/`,
+    cMapPacked: true,
     withCredentials: false,
     httpHeaders: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache'
-    }
+      'Accept': 'application/pdf',
+      'Content-Type': 'application/pdf'
+    },
+    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`
   }), []);
 
   useEffect(() => {
     fetchPdfUrl();
+    
+    // Cleanup function to revoke blob URLs
+    return () => {
+      if (pdfUrl && pdfUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
   }, [document.id]);
 
   const fetchPdfUrl = async () => {
     try {
       setIsLoading(true);
       
-      // Try to get public URL first, then fall back to signed URL
-      const publicUrl = supabase.storage
+      // For employees, always use signed URLs for security
+      const { data, error } = await supabase.storage
         .from('documents')
-        .getPublicUrl(document.file_path);
+        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
 
-      if (publicUrl.data?.publicUrl) {
-        setPdfUrl(publicUrl.data.publicUrl);
-      } else {
-        // Fall back to signed URL
-        const { data, error } = await supabase.storage
-          .from('documents')
-          .createSignedUrl(document.file_path, 3600); // 1 hour expiry
-
-        if (error) {
-          console.error('Error getting signed URL:', error);
-          toast.error('Failed to load document. Please check your permissions.');
-          return;
-        }
-
-        setPdfUrl(data.signedUrl);
+      if (error) {
+        console.error('Error getting signed URL:', error);
+        toast.error('Failed to load document. Please check your permissions.');
+        return;
       }
+
+      // Convert relative URL to absolute URL
+      const baseUrl = supabase.storage.from('documents').getPublicUrl('').data.publicUrl.replace('/storage/v1/object/public/documents/', '');
+      const fullSignedUrl = `${baseUrl}/storage/v1${data.signedUrl}`;
+      
+      // Fetch PDF as blob for better security and handling
+      const response = await fetch(fullSignedUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/pdf',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfUrl(blobUrl);
+      
+      // Cleanup blob URL when component unmounts
+      return () => URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Error fetching PDF:', error);
       toast.error('Failed to load document');

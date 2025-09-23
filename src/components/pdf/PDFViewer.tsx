@@ -5,8 +5,22 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker with fallback
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Configure PDF.js worker with multiple fallbacks
+const configurePDFWorker = () => {
+  if (typeof window !== 'undefined') {
+    // Try multiple CDN sources for better reliability
+    const workerSources = [
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`,
+      `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+    ];
+    
+    // Use the first available worker source
+    pdfjs.GlobalWorkerOptions.workerSrc = workerSources[0];
+  }
+};
+
+configurePDFWorker();
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -27,17 +41,18 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
   // Memoize PDF options to prevent unnecessary reloads
   const pdfOptions = useMemo(() => ({
-    disableRange: true,
-    disableStream: true,
-    disableAutoFetch: true,
-    disableFontFace: true,
-    cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+    disableRange: false,
+    disableStream: false,
+    disableAutoFetch: false,
+    disableFontFace: false,
+    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/cmaps/`,
     cMapPacked: true,
     withCredentials: false,
     httpHeaders: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache'
-    }
+      'Accept': 'application/pdf',
+      'Content-Type': 'application/pdf'
+    },
+    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`
   }), []);
 
   // Security: Disable right-click, keyboard shortcuts, and text selection
