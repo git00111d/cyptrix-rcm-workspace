@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import {
 import { PDFViewer } from '@/components/pdf/PDFViewer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Document {
   id: string;
@@ -39,11 +40,25 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
   onPageChange,
   className = ''
 }) => {
+  const { user } = useAuth();
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [zoom, setZoom] = useState([100]);
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Memoize PDF options to prevent unnecessary reloads
+  const pdfOptions = useMemo(() => ({
+    disableRange: true,
+    disableStream: true,
+    disableAutoFetch: true,
+    disableFontFace: true,
+    withCredentials: false,
+    httpHeaders: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache'
+    }
+  }), []);
 
   useEffect(() => {
     fetchPdfUrl();
@@ -52,17 +67,28 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
   const fetchPdfUrl = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.storage
+      
+      // Try to get public URL first, then fall back to signed URL
+      const publicUrl = supabase.storage
         .from('documents')
-        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
+        .getPublicUrl(document.file_path);
 
-      if (error) {
-        console.error('Error getting signed URL:', error);
-        toast.error('Failed to load document');
-        return;
+      if (publicUrl.data?.publicUrl) {
+        setPdfUrl(publicUrl.data.publicUrl);
+      } else {
+        // Fall back to signed URL
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(document.file_path, 3600); // 1 hour expiry
+
+        if (error) {
+          console.error('Error getting signed URL:', error);
+          toast.error('Failed to load document. Please check your permissions.');
+          return;
+        }
+
+        setPdfUrl(data.signedUrl);
       }
-
-      setPdfUrl(data.signedUrl);
     } catch (error) {
       console.error('Error fetching PDF:', error);
       toast.error('Failed to load document');
@@ -206,9 +232,12 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
               <RotateCw className="h-4 w-4" />
             </Button>
             
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="h-4 w-4" />
-            </Button>
+            {/* Only show download button for Admin users */}
+            {user?.role === 'ADMIN' && (
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="h-4 w-4" />
+              </Button>
+            )}
             
             <Button variant="outline" size="sm" onClick={toggleFullscreen}>
               <Maximize2 className="h-4 w-4" />

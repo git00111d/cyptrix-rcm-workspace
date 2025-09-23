@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -24,6 +24,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Memoize PDF options to prevent unnecessary reloads
+  const pdfOptions = useMemo(() => ({
+    disableRange: true,
+    disableStream: true,
+    disableAutoFetch: true,
+    disableFontFace: true,
+    cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+    cMapPacked: true,
+    withCredentials: false,
+    httpHeaders: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache'
+    }
+  }), []);
 
   // Security: Disable right-click, keyboard shortcuts, and text selection
   useEffect(() => {
@@ -153,22 +168,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           loading=""
-          options={{
-            // Disable text layer and downloading for security
-            disableRange: true,
-            disableStream: true,
-            disableAutoFetch: true,
-            disableFontFace: true,
-            // Prevent downloads and copying
-            cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-            cMapPacked: true,
-            // Additional security
-            withCredentials: false,
-            httpHeaders: {
-              'Cache-Control': 'no-store, no-cache, must-revalidate',
-              'Pragma': 'no-cache'
-            }
-          }}
+          options={pdfOptions}
         >
           <Page
             pageNumber={currentPage}
