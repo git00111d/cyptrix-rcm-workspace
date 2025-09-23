@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, range',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 serve(async (req) => {
@@ -13,19 +13,40 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders })
+  }
+
   try {
-    const url = new URL(req.url)
-    const filePath = url.searchParams.get('file')
+    // Get request body
+    let requestData
+    try {
+      requestData = await req.json()
+    } catch {
+      return new Response('Invalid JSON body', { status: 400, headers: corsHeaders })
+    }
+    
+    const { filePath } = requestData
     
     if (!filePath) {
-      return new Response('File path required', { status: 400, headers: corsHeaders })
+      console.error('No file path provided')
+      return new Response(JSON.stringify({ error: 'File path required' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     // Get auth token from request
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response('Authorization required', { status: 401, headers: corsHeaders })
+      console.error('No authorization header')
+      return new Response(JSON.stringify({ error: 'Authorization required' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
+
+    console.log(`Processing PDF request for file: ${filePath}`)
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -33,66 +54,70 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify user permissions (you can add role-based checks here)
+    // Verify user permissions
     const { data: { user }, error: userError } = await supabase.auth.getUser(
       authHeader.replace('Bearer ', '')
     )
 
     if (userError || !user) {
-      return new Response('Invalid token', { status: 401, headers: corsHeaders })
+      console.error('User verification failed:', userError)
+      return new Response(JSON.stringify({ error: 'Invalid token' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
-    // Create signed URL for the file
-    const { data: signedData, error: signedError } = await supabase.storage
+    console.log(`User verified: ${user.id}`)
+
+    // Try to download the file directly
+    const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
-      .createSignedUrl(filePath, 3600)
+      .download(filePath)
 
-    if (signedError || !signedData) {
-      console.error('Error creating signed URL:', signedError)
-      return new Response('File not found', { status: 404, headers: corsHeaders })
+    if (downloadError || !fileData) {
+      console.error('Error downloading file:', downloadError)
+      return new Response(JSON.stringify({ error: 'File not found or access denied' }), { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
-    // Fetch the file from storage
-    const storageUrl = `${Deno.env.get('SUPABASE_URL')}/storage/v1${signedData.signedUrl}`
+    console.log(`File downloaded successfully, size: ${fileData.size} bytes`)
+
+    // Verify it's a PDF
+    const arrayBuffer = await fileData.arrayBuffer()
+    const bytes = new Uint8Array(arrayBuffer.slice(0, 4))
+    const pdfSignature = Array.from(bytes).map(b => String.fromCharCode(b)).join('')
     
-    const rangeHeader = req.headers.get('range')
-    const fetchHeaders: Record<string, string> = {
-      'Accept': 'application/pdf',
-    }
-    
-    if (rangeHeader) {
-      fetchHeaders['Range'] = rangeHeader
-    }
-
-    const response = await fetch(storageUrl, {
-      headers: fetchHeaders
-    })
-
-    if (!response.ok) {
-      return new Response('Failed to fetch file', { status: response.status, headers: corsHeaders })
+    if (pdfSignature !== '%PDF') {
+      console.error('File is not a valid PDF')
+      return new Response(JSON.stringify({ error: 'Invalid PDF file' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
-    // Forward the response with proper headers
+    // Return the PDF data
     const responseHeaders = {
       ...corsHeaders,
       'Content-Type': 'application/pdf',
-      'Content-Length': response.headers.get('Content-Length') || '',
+      'Content-Length': arrayBuffer.byteLength.toString(),
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, max-age=60', // Short cache for security
     }
 
-    // Handle range requests for PDF streaming
-    if (response.status === 206) {
-      responseHeaders['Content-Range'] = response.headers.get('Content-Range') || ''
-    }
+    console.log('Returning PDF data successfully')
 
-    return new Response(response.body, {
-      status: response.status,
+    return new Response(arrayBuffer, {
+      status: 200,
       headers: responseHeaders
     })
 
   } catch (error) {
     console.error('Proxy error:', error)
-    return new Response('Internal server error', { status: 500, headers: corsHeaders })
+    return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 })

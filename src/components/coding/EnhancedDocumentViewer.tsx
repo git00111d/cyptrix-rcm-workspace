@@ -80,7 +80,7 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
     try {
       setIsLoading(true);
       
-      const result = await loadPDFSecurely(document.file_path);
+      const result = await loadPDFSecurely(document.file_path, user?.id);
       if (result) {
         setPdfUrl(result.blobUrl);
         // Store cleanup function for when component unmounts
@@ -234,6 +234,7 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
             {user?.role === 'ADMIN' && (
               <Button variant="outline" size="sm" onClick={handleDownload}>
                 <Download className="h-4 w-4" />
+                Download
               </Button>
             )}
             
@@ -252,13 +253,22 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
             transform: `rotate(${rotation}deg)`
           }}
         >
-          {pdfUrl && (
+        {pdfUrl ? (
             <PDFViewer
               fileUrl={pdfUrl}
               currentPage={currentPage}
               onPageChange={onPageChange}
               className="h-full"
             />
+          ) : (
+            <div className="flex items-center justify-center h-full bg-muted/10 rounded-lg">
+              <div className="text-center">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  This document could not be displayed. Please re-upload or contact admin.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </CardContent>

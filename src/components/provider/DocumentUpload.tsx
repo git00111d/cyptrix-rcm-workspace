@@ -99,7 +99,8 @@ export const DocumentUpload: React.FC = () => {
           .from('documents')
           .upload(filePath, file, {
             contentType: 'application/pdf',
-            cacheControl: '3600'
+            cacheControl: '3600',
+            upsert: false
           })
 
         if (uploadError) {

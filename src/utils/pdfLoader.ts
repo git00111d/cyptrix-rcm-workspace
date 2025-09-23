@@ -1,98 +1,90 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logPDFError } from './adminLogger';
 
 export interface PDFLoadResult {
   blobUrl: string;
   cleanup: () => void;
 }
 
-export const loadPDFSecurely = async (filePath: string): Promise<PDFLoadResult | null> => {
+export const loadPDFSecurely = async (filePath: string, userId?: string): Promise<PDFLoadResult | null> => {
   try {
     console.log('Loading PDF from path:', filePath);
     
-    // First try: Direct signed URL
-    const { data: signedData, error: signedError } = await supabase.storage
+    // Use Supabase download method for secure access
+    const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
-      .createSignedUrl(filePath, 3600);
+      .download(filePath);
 
-    if (signedError || !signedData) {
-      console.error('Error creating signed URL:', signedError);
-      throw new Error('Failed to create signed URL');
-    }
-
-    // Construct the proper URL
-    const supabaseUrl = supabase.storage.from('documents').getPublicUrl('dummy').data.publicUrl;
-    const baseUrl = supabaseUrl.replace('/storage/v1/object/public/documents/dummy', '');
-    const fullSignedUrl = `${baseUrl}/storage/v1${signedData.signedUrl}`;
-    
-    console.log('Fetching PDF from:', fullSignedUrl);
-    
-    try {
-      // Try direct fetch first
-      const response = await fetch(fullSignedUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/pdf',
-          'Range': 'bytes=0-',
-        },
-        credentials: 'omit'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
+    if (downloadError || !fileData) {
+      console.error('Error downloading file:', downloadError);
       
-      // Ensure proper PDF content type
-      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      
-      console.log('PDF loaded successfully via direct fetch');
-      
-      return {
-        blobUrl,
-        cleanup: () => URL.revokeObjectURL(blobUrl)
-      };
-      
-    } catch (directError) {
-      console.warn('Direct fetch failed, trying proxy:', directError);
-      
-      // Fallback: Use edge function proxy
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No valid session for proxy request');
-      }
-
-      const proxyUrl = `${baseUrl}/functions/v1/pdf-proxy?file=${encodeURIComponent(filePath)}`;
-      
-      const proxyResponse = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Accept': 'application/pdf',
+      // Fallback: Try using edge function proxy
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session?.access_token) {
+          throw new Error('No valid session for proxy request');
         }
-      });
 
-      if (!proxyResponse.ok) {
-        throw new Error(`Proxy failed: ${proxyResponse.status}`);
+        const { data: proxyData, error: proxyError } = await supabase.functions.invoke('pdf-proxy', {
+          body: { filePath },
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          }
+        });
+
+        if (proxyError || !proxyData) {
+          throw new Error(`Proxy failed: ${proxyError?.message}`);
+        }
+
+        // Convert the proxy response to blob if it's not already
+        let blob: Blob;
+        if (proxyData instanceof Blob) {
+          blob = proxyData;
+        } else {
+          blob = new Blob([proxyData], { type: 'application/pdf' });
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
+        console.log('PDF loaded successfully via proxy');
+        
+        return {
+          blobUrl,
+          cleanup: () => URL.revokeObjectURL(blobUrl)
+        };
+      } catch (proxyError) {
+        console.error('Proxy fallback failed:', proxyError);
+        throw new Error('Failed to load document through all methods');
       }
-
-      const proxyBlob = await proxyResponse.blob();
-      const pdfBlob = new Blob([proxyBlob], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      
-      console.log('PDF loaded successfully via proxy');
-      
-      return {
-        blobUrl,
-        cleanup: () => URL.revokeObjectURL(blobUrl)
-      };
     }
+
+    // Verify the downloaded data is a PDF
+    const arrayBuffer = await fileData.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer.slice(0, 4));
+    const pdfSignature = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
+    
+    if (pdfSignature !== '%PDF') {
+      throw new Error('Downloaded file is not a valid PDF');
+    }
+
+    // Create blob with proper content type
+    const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    
+    console.log('PDF loaded successfully via download');
+    
+    return {
+      blobUrl,
+      cleanup: () => URL.revokeObjectURL(blobUrl)
+    };
     
   } catch (error) {
     console.error('PDF loading failed:', error);
+    
+    // Log error for admin review
+    await logPDFError(error as Error, filePath, userId);
+    
     toast.error(`Failed to load PDF: ${error.message}`);
     return null;
   }
