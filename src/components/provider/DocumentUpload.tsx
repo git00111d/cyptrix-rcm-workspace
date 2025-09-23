@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/hooks/use-toast'
 import { isSupabaseConfigured } from '@/lib/supabase'
 
+import { validatePDFBytes } from '@/utils/pdfLoader';
+
 export const DocumentUpload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -67,7 +69,7 @@ export const DocumentUpload: React.FC = () => {
     
     for (const file of files) {
       try {
-        // Validate file type
+        // Validate file type and PDF signature
         if (file.type !== 'application/pdf') {
           toast({
             title: "Invalid File Type",
@@ -77,14 +79,28 @@ export const DocumentUpload: React.FC = () => {
           continue
         }
 
-        // Upload file to storage
+        // Validate PDF file signature
+        const isValidPDF = await validatePDFBytes(file);
+        if (!isValidPDF) {
+          toast({
+            title: "Invalid PDF File",
+            description: `${file.name} is not a valid PDF file`,
+            variant: "destructive",
+          })
+          continue
+        }
+
+        // Upload file to storage with proper content type
         const fileExt = 'pdf'
         const fileName = `${Date.now()}_${file.name}`
         const filePath = `${user.userId}/${fileName}`
 
         const { error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(filePath, file)
+          .upload(filePath, file, {
+            contentType: 'application/pdf',
+            cacheControl: '3600'
+          })
 
         if (uploadError) {
           throw uploadError

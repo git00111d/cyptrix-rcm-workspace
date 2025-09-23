@@ -18,6 +18,7 @@ import { pdfjs } from 'react-pdf';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { loadPDFSecurely } from '@/utils/pdfLoader';
 
 interface Document {
   id: string;
@@ -79,42 +80,16 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
     try {
       setIsLoading(true);
       
-      // For employees, always use signed URLs for security
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
-
-      if (error) {
-        console.error('Error getting signed URL:', error);
-        toast.error('Failed to load document. Please check your permissions.');
-        return;
+      const result = await loadPDFSecurely(document.file_path);
+      if (result) {
+        setPdfUrl(result.blobUrl);
+        // Store cleanup function for when component unmounts
+        return result.cleanup;
       }
-
-      // Convert relative URL to absolute URL
-      const baseUrl = supabase.storage.from('documents').getPublicUrl('').data.publicUrl.replace('/storage/v1/object/public/documents/', '');
-      const fullSignedUrl = `${baseUrl}/storage/v1${data.signedUrl}`;
       
-      // Fetch PDF as blob for better security and handling
-      const response = await fetch(fullSignedUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/pdf',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      setPdfUrl(blobUrl);
-      
-      // Cleanup blob URL when component unmounts
-      return () => URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Error fetching PDF:', error);
-      toast.error('Failed to load document');
+      toast.error(`Failed to load document: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
