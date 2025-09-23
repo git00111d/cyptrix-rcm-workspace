@@ -97,7 +97,29 @@ serve(async (req) => {
       })
     }
 
-    // Return the PDF data
+    // Handle range requests for PDF streaming
+    const range = req.headers.get('range')
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-")
+      const start = parseInt(parts[0], 10)
+      const end = parts[1] ? parseInt(parts[1], 10) : arrayBuffer.byteLength - 1
+      const chunksize = (end - start) + 1
+      const chunk = arrayBuffer.slice(start, end + 1)
+
+      return new Response(chunk, {
+        status: 206,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/pdf',
+          'Accept-Ranges': 'bytes',
+          'Content-Range': `bytes ${start}-${end}/${arrayBuffer.byteLength}`,
+          'Content-Length': chunksize.toString(),
+          'Cache-Control': 'private, max-age=60'
+        }
+      })
+    }
+
+    // Return the full PDF data
     const responseHeaders = {
       ...corsHeaders,
       'Content-Type': 'application/pdf',

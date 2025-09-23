@@ -21,68 +21,88 @@ export const loadPDFSecurely = async (filePath: string, userId?: string): Promis
   try {
     console.log('Loading PDF from path:', filePath);
     
-    // Use Supabase download method for secure access
+    // First try Supabase download method for secure access
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
       .download(filePath);
 
-    if (downloadError || !fileData) {
-      console.error('Error downloading file:', downloadError);
+    if (!downloadError && fileData) {
+      console.log('PDF downloaded successfully via Supabase client');
       
-      // Fallback: Try using edge function proxy
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session?.access_token) {
-          throw new Error('No valid session for proxy request');
-        }
-
-        const { data: proxyData, error: proxyError } = await supabase.functions.invoke('pdf-proxy', {
-          body: { filePath },
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          }
-        });
-
-        if (proxyError || !proxyData) {
-          throw new Error(`Proxy failed: ${proxyError?.message}`);
-        }
-
-        // Convert the proxy response to blob if it's not already
-        let blob: Blob;
-        if (proxyData instanceof Blob) {
-          blob = proxyData;
-        } else {
-          blob = new Blob([proxyData], { type: 'application/pdf' });
-        }
-
-        const blobUrl = URL.createObjectURL(blob);
-        console.log('PDF loaded successfully via proxy');
-        
-        return {
-          blobUrl,
-          cleanup: () => URL.revokeObjectURL(blobUrl)
-        };
-      } catch (proxyError) {
-        console.error('Proxy fallback failed:', proxyError);
-        throw new Error('Failed to load document through all methods');
+      // Verify the downloaded data is a PDF
+      const arrayBuffer = await fileData.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer.slice(0, 4));
+      const pdfSignature = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
+      
+      if (pdfSignature !== '%PDF') {
+        throw new Error('Downloaded file is not a valid PDF');
       }
+
+      // Create blob with proper content type and headers for PDF.js
+      const pdfBlob = new Blob([fileData], { 
+        type: 'application/pdf'
+      });
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      
+      return {
+        blobUrl,
+        cleanup: () => URL.revokeObjectURL(blobUrl)
+      };
     }
 
-    // Verify the downloaded data is a PDF
-    const arrayBuffer = await fileData.arrayBuffer();
+    // If direct download fails, try using edge function proxy
+    console.log('Direct download failed, trying proxy method:', downloadError);
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      throw new Error('No valid session for proxy request');
+    }
+
+    const { data: proxyData, error: proxyError } = await supabase.functions.invoke('pdf-proxy', {
+      body: { filePath }
+    });
+
+    if (proxyError) {
+      console.error('Proxy error:', proxyError);
+      throw new Error(`Proxy failed: ${proxyError.message}`);
+    }
+
+    if (!proxyData) {
+      throw new Error('No data received from proxy');
+    }
+
+    // Handle different response types from edge function
+    let pdfBlob: Blob;
+    
+    if (proxyData instanceof ArrayBuffer) {
+      pdfBlob = new Blob([proxyData], { type: 'application/pdf' });
+    } else if (proxyData instanceof Blob) {
+      pdfBlob = proxyData;
+    } else if (typeof proxyData === 'string') {
+      // If it's base64 or similar, convert it
+      const binaryString = atob(proxyData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+    } else {
+      // Assume it's already binary data
+      pdfBlob = new Blob([new Uint8Array(proxyData)], { type: 'application/pdf' });
+    }
+
+    // Validate PDF signature from blob
+    const arrayBuffer = await pdfBlob.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer.slice(0, 4));
     const pdfSignature = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
     
     if (pdfSignature !== '%PDF') {
-      throw new Error('Downloaded file is not a valid PDF');
+      throw new Error('Proxy returned invalid PDF data');
     }
 
-    // Create blob with proper content type
-    const pdfBlob = new Blob([fileData], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(pdfBlob);
-    
-    console.log('PDF loaded successfully via download');
+    console.log('PDF loaded successfully via proxy');
     
     return {
       blobUrl,
@@ -90,12 +110,13 @@ export const loadPDFSecurely = async (filePath: string, userId?: string): Promis
     };
     
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('PDF loading failed:', error);
     
     // Log error for admin review
     logPDFError(error as Error, filePath, userId);
     
-    toast.error(`Failed to load PDF: ${error.message}`);
+    toast.error(`Failed to load PDF: ${errorMessage}`);
     return null;
   }
 };
