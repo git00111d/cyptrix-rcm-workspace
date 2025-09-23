@@ -66,16 +66,13 @@ export const AuditQueue: React.FC = () => {
         .select(`
           *,
           profiles:provider_id (name, email),
-          page_codes (
-            *,
-            profiles:created_by (name, email)
-          )
+          page_codes (*)
         `)
         .in('status', ['CODING_COMPLETE', 'UNDER_AUDIT'])
         .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
-      setDocuments(data || []);
+      setDocuments(data as any || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
       toast.error('Failed to fetch documents for audit');

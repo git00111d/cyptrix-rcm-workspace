@@ -24,6 +24,7 @@ interface PageCodeEditorProps {
   pageNumber: number;
   isReadOnly?: boolean;
   className?: string;
+  onSave?: () => void;
 }
 
 export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
@@ -31,6 +32,7 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
   pageNumber,
   isReadOnly = false,
   className = '',
+  onSave,
 }) => {
   const [pageCode, setPageCode] = useState<PageCode>({
     document_id: documentId,
@@ -102,6 +104,75 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
       toast.error('Failed to load page codes');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSave = async (silent = false) => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!silent) toast.error('You must be logged in to save codes');
+        return;
+      }
+
+      const codeData = {
+        document_id: documentId,
+        page_number: pageNumber,
+        icd_codes: pageCode.icd_codes,
+        cpt_codes: pageCode.cpt_codes,
+        notes: pageCode.notes,
+        created_by: user.id,
+      };
+
+      const { error } = await supabase
+        .from('page_codes')
+        .upsert(codeData, {
+          onConflict: 'document_id,page_number,created_by',
+        });
+
+      if (error) {
+        console.error('Error saving page codes:', error);
+        if (!silent) toast.error('Failed to save codes');
+      } else {
+        setHasChanges(false);
+        setLastAutoSave(new Date());
+        if (!silent) {
+          toast.success(`Codes saved for page ${pageNumber}`);
+        }
+        onSave?.();
+        await fetchPageCodes(); // Refresh to get the updated data
+      }
+    } catch (error) {
+      console.error('Error saving page codes:', error);
+      if (!silent) toast.error('Failed to save codes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmitForAudit = async () => {
+    if (!documentId) return;
+    
+    setIsSaving(true);
+    try {
+      // First save the current codes
+      await handleSave(true);
+      
+      // Then update document status
+      const { error } = await supabase
+        .from('documents')
+        .update({ status: 'CODING_COMPLETE' })
+        .eq('id', documentId);
+
+      if (error) throw error;
+      
+      toast.success('Document submitted for audit');
+    } catch (error) {
+      console.error('Error submitting for audit:', error);
+      toast.error('Failed to submit for audit');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -196,48 +267,7 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
     }
   };
 
-  const handleSave = async (silent = false) => {
-    try {
-      setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        if (!silent) toast.error('You must be logged in to save codes');
-        return;
-      }
-
-      const codeData = {
-        document_id: documentId,
-        page_number: pageNumber,
-        icd_codes: pageCode.icd_codes,
-        cpt_codes: pageCode.cpt_codes,
-        notes: pageCode.notes,
-        created_by: user.id,
-      };
-
-      const { error } = await supabase
-        .from('page_codes')
-        .upsert(codeData, {
-          onConflict: 'document_id,page_number,created_by',
-        });
-
-      if (error) {
-        console.error('Error saving page codes:', error);
-        if (!silent) toast.error('Failed to save codes');
-      } else {
-        setHasChanges(false);
-        setLastAutoSave(new Date());
-        if (!silent) {
-          toast.success(`Codes saved for page ${pageNumber}`);
-        }
-        await fetchPageCodes(); // Refresh to get the updated data
-      }
-    } catch (error) {
-      console.error('Error saving page codes:', error);
-      if (!silent) toast.error('Failed to save codes');
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const hasValidCodes = pageCode.icd_codes.some(code => code.trim()) || pageCode.cpt_codes.some(code => code.trim());
 
   if (isLoading) {
     return (
@@ -408,6 +438,30 @@ export const PageCodeEditor: React.FC<PageCodeEditorProps> = ({
             readOnly={isReadOnly}
           />
         </div>
+
+        {/* Action Buttons */}
+        {!isReadOnly && (
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => handleSave(false)}
+                disabled={isSaving}
+                className="flex-1"
+              >
+                {isSaving ? 'Saving...' : 'Save Codes'}
+              </Button>
+              
+              <Button 
+                onClick={handleSubmitForAudit}
+                disabled={isSaving || !hasValidCodes}
+                variant="default"
+                className="flex-1"
+              >
+                Submit for Audit
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

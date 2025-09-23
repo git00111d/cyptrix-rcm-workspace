@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      document_queries: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          document_id: string
+          id: string
+          message: string
+          page_number: number | null
+          responded_at: string | null
+          responded_by: string | null
+          response: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          document_id: string
+          id?: string
+          message: string
+          page_number?: number | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          document_id?: string
+          id?: string
+          message?: string
+          page_number?: number | null
+          responded_at?: string | null
+          responded_by?: string | null
+          response?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_queries_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           file_path: string
