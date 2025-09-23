@@ -80,7 +80,7 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
     try {
       setIsLoading(true);
       
-      const result = await loadPDFSecurely(document.file_path, user?.id);
+      const result = await loadPDFSecurely(document.file_path, user?.userId);
       if (result) {
         setPdfUrl(result.blobUrl);
         // Store cleanup function for when component unmounts

@@ -1,11 +1,21 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { logPDFError } from './adminLogger';
 
 export interface PDFLoadResult {
   blobUrl: string;
   cleanup: () => void;
 }
+
+const logPDFError = (error: Error, filePath: string, userId?: string) => {
+  console.error('[PDF ERROR]', {
+    message: error.message,
+    filePath,
+    userId,
+    stack: error.stack,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent
+  });
+};
 
 export const loadPDFSecurely = async (filePath: string, userId?: string): Promise<PDFLoadResult | null> => {
   try {
@@ -83,7 +93,7 @@ export const loadPDFSecurely = async (filePath: string, userId?: string): Promis
     console.error('PDF loading failed:', error);
     
     // Log error for admin review
-    await logPDFError(error as Error, filePath, userId);
+    logPDFError(error as Error, filePath, userId);
     
     toast.error(`Failed to load PDF: ${error.message}`);
     return null;

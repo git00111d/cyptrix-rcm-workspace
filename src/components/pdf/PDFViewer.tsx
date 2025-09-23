@@ -71,16 +71,22 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       }
     };
 
-    document.addEventListener('contextmenu', handleContextMenu);
+    const pdfContainer = document.querySelector('.pdf-container');
+    if (pdfContainer) {
+      pdfContainer.addEventListener('contextmenu', handleContextMenu);
+      pdfContainer.addEventListener('selectstart', (e) => e.preventDefault());
+      pdfContainer.addEventListener('dragstart', (e) => e.preventDefault());
+    }
+
     document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('selectstart', (e) => e.preventDefault());
-    document.addEventListener('dragstart', (e) => e.preventDefault());
 
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
+      if (pdfContainer) {
+        pdfContainer.removeEventListener('contextmenu', handleContextMenu);
+        pdfContainer.removeEventListener('selectstart', (e) => e.preventDefault());
+        pdfContainer.removeEventListener('dragstart', (e) => e.preventDefault());
+      }
       document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('selectstart', (e) => e.preventDefault());
-      document.removeEventListener('dragstart', (e) => e.preventDefault());
     };
   }, []);
 
@@ -161,13 +167,14 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       </div>
 
       <div 
-        className="border rounded-lg bg-muted/20 flex justify-center min-h-[600px] relative overflow-auto"
+        className="border rounded-lg bg-muted/20 flex justify-center min-h-[600px] relative overflow-auto pdf-container"
         style={{ 
           userSelect: 'none', 
           WebkitUserSelect: 'none', 
           MozUserSelect: 'none',
           msUserSelect: 'none',
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          WebkitTouchCallout: 'none'
         }}
         onContextMenu={(e) => e.preventDefault()}
         onDragStart={(e) => e.preventDefault()}
