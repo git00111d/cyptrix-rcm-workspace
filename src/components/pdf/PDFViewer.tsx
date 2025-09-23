@@ -39,7 +39,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Memoize PDF options to prevent unnecessary reloads
+  // Memoize PDF options for better performance and security
   const pdfOptions = useMemo(() => ({
     disableRange: false,
     disableStream: false,
@@ -50,9 +50,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     withCredentials: false,
     httpHeaders: {
       'Accept': 'application/pdf',
-      'Content-Type': 'application/pdf'
+      'Content-Type': 'application/pdf',
+      'Cache-Control': 'private, max-age=60'
     },
-    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`
+    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`,
+    // Security options
+    isEvalSupported: false,
+    maxImageSize: 16777216 // 16MB limit
   }), []);
 
   // Security: Disable right-click, keyboard shortcuts, and text selection
@@ -93,13 +97,25 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setLoading(false);
+    console.log(`PDF loaded successfully with ${numPages} pages`);
     toast.success(`PDF loaded with ${numPages} pages`);
   };
 
   const onDocumentLoadError = (error: Error) => {
     console.error('Error loading PDF:', error);
     setLoading(false);
-    toast.error('Failed to load PDF document');
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to load PDF document';
+    if (error.message.includes('Invalid PDF structure')) {
+      errorMessage = 'The PDF file appears to be corrupted';
+    } else if (error.message.includes('fetch')) {
+      errorMessage = 'Network error loading PDF. Please try again';
+    } else if (error.message.includes('decode')) {
+      errorMessage = 'PDF format not supported';
+    }
+    
+    toast.error(errorMessage);
   };
 
   const handlePrevPage = () => {

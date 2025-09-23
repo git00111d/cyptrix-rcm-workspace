@@ -65,31 +65,57 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
     standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`
   }), []);
 
+  // Cleanup function to revoke blob URLs properly
   useEffect(() => {
-    fetchPdfUrl();
+    let cleanup: (() => void) | undefined;
+
+    const loadPdf = async () => {
+      cleanup = await fetchPdfUrl();
+    };
+
+    loadPdf();
     
     // Cleanup function to revoke blob URLs
     return () => {
+      if (cleanup) {
+        cleanup();
+      }
       if (pdfUrl && pdfUrl.startsWith('blob:')) {
         URL.revokeObjectURL(pdfUrl);
       }
     };
-  }, [document.id]);
+  }, [document.id, document.file_path]);
 
   const fetchPdfUrl = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching PDF for document:', document.id, document.file_path);
+      
+      // Clean up any existing blob URL
+      if (pdfUrl && pdfUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl('');
+      }
       
       const result = await loadPDFSecurely(document.file_path, user?.userId);
       if (result) {
+        console.log('PDF loaded successfully, setting URL:', result.blobUrl);
         setPdfUrl(result.blobUrl);
-        // Store cleanup function for when component unmounts
-        return result.cleanup;
+        
+        // Store cleanup function for later use
+        const cleanup = result.cleanup;
+        return () => {
+          cleanup();
+          setPdfUrl('');
+        };
+      } else {
+        console.error('Failed to load PDF - no result returned');
+        toast.error('This document could not be displayed. Please re-upload or contact admin.');
       }
       
     } catch (error) {
       console.error('Error fetching PDF:', error);
-      toast.error(`Failed to load document: ${error.message}`);
+      toast.error(`Failed to load document: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -253,7 +279,7 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
             transform: `rotate(${rotation}deg)`
           }}
         >
-        {pdfUrl ? (
+          {pdfUrl ? (
             <PDFViewer
               fileUrl={pdfUrl}
               currentPage={currentPage}
@@ -262,11 +288,19 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
             />
           ) : (
             <div className="flex items-center justify-center h-full bg-muted/10 rounded-lg">
-              <div className="text-center">
+              <div className="text-center p-8">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
+                <p className="text-lg font-medium text-foreground mb-2">
+                  Document Unavailable
+                </p>
+                <p className="text-muted-foreground mb-4">
                   This document could not be displayed. Please re-upload or contact admin.
                 </p>
+                {user?.role === 'ADMIN' && (
+                  <p className="text-xs text-muted-foreground border-t pt-4 mt-4">
+                    Admin: Check console logs for detailed error information
+                  </p>
+                )}
               </div>
             </div>
           )}
