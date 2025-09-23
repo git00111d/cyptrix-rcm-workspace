@@ -53,6 +53,11 @@ export const loadPDFSecurely = async (filePath: string, userId?: string): Promis
     // If direct download fails, try using edge function proxy
     console.log('Direct download failed, trying proxy method:', downloadError);
     
+    // Provide specific error message for bucket issues
+    if (downloadError?.message?.includes('Bucket not found') || downloadError?.message?.includes('bucket')) {
+      throw new Error('Document storage is not properly configured. Please contact admin.');
+    }
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session?.access_token) {

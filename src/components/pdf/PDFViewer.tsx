@@ -5,18 +5,14 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker with multiple fallbacks
+// Configure PDF.js worker with more reliable setup
 const configurePDFWorker = () => {
   if (typeof window !== 'undefined') {
-    // Try multiple CDN sources for better reliability
-    const workerSources = [
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`,
-      `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
-      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
-    ];
+    // Use CDN with fallback - this is more reliable than trying to serve locally
+    const workerUrl = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
     
-    // Use the first available worker source
-    pdfjs.GlobalWorkerOptions.workerSrc = workerSources[0];
+    console.log('PDF.js worker configured:', workerUrl);
   }
 };
 
@@ -107,12 +103,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     
     // Provide more specific error messages
     let errorMessage = 'Failed to load PDF document';
-    if (error.message.includes('Invalid PDF structure')) {
+    if (error.message.includes('worker') || error.message.includes('Worker')) {
+      errorMessage = 'PDF rendering engine failed to load. Please refresh the page.';
+    } else if (error.message.includes('Invalid PDF structure')) {
       errorMessage = 'The PDF file appears to be corrupted';
-    } else if (error.message.includes('fetch')) {
+    } else if (error.message.includes('fetch') || error.message.includes('network')) {
       errorMessage = 'Network error loading PDF. Please try again';
     } else if (error.message.includes('decode')) {
       errorMessage = 'PDF format not supported';
+    } else if (error.message.includes('bucket') || error.message.includes('Bucket')) {
+      errorMessage = 'Document storage error. Please contact admin.';
     }
     
     toast.error(errorMessage);

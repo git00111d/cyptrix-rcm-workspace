@@ -15,4 +15,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Serve PDF.js worker from node_modules to avoid CDN issues
+  publicDir: 'public',
+  assetsInclude: ['**/*.worker.js'],
+  optimizeDeps: {
+    include: ['pdfjs-dist']
+  }
 }));
