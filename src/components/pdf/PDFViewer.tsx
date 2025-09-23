@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Configure PDF.js worker - using more reliable CDN
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -160,7 +160,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             disableAutoFetch: false,
             disableFontFace: false,
             // Additional security options
-            cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+            cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/cmaps/`,
             cMapPacked: true,
           }}
         >
