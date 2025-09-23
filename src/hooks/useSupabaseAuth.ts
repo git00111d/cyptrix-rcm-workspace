@@ -73,54 +73,57 @@ export const useSupabaseAuth = () => {
     console.log('User set immediately from auth data')
     
     // Try to fetch/create profile in background (don't block login)
-    try {
-      console.log('Fetching profile for user:', authUser.id)
-      
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle()
-
-      console.log('Profile fetch completed:', { profile, error })
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error)
-      }
-
-      if (profile) {
-        console.log('Updating user from profile:', profile)
-        setUser({
-          userId: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: profile.role as AuthUser['role'],
-          active: profile.active,
-          createdAt: profile.created_at,
-          token: authSession?.access_token || ''
-        })
-      } else {
-        console.log('No profile found, attempting to create one...')
+    setTimeout(async () => {
+      try {
+        console.log('Fetching profile for user:', authUser.id)
         
-        // Try to create profile
-        const { error: insertError } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email || '',
-            name: userData.name || authUser.email?.split('@')[0] || 'User',
-            role: userData.role || 'PROVIDER'
-          })
-          
-        if (insertError) {
-          console.log('Profile creation failed (user may already exist):', insertError.message)
-        } else {
-          console.log('Profile created successfully')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle()
+
+        console.log('Profile fetch completed:', { profile, error })
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error)
+          return // Don't block on profile errors
         }
+
+        if (profile) {
+          console.log('Updating user from profile:', profile)
+          setUser(prev => prev ? {
+            ...prev,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role as AuthUser['role'],
+            active: profile.active,
+            createdAt: profile.created_at,
+          } : prev)
+        } else {
+          console.log('No profile found, attempting to create one...')
+          
+          // Try to create profile
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: authUser.id,
+              email: authUser.email || '',
+              name: userData.name || authUser.email?.split('@')[0] || 'User',
+              role: userData.role || 'PROVIDER',
+              active: true
+            })
+            
+          if (insertError) {
+            console.log('Profile creation failed (user may already exist):', insertError.message)
+          } else {
+            console.log('Profile created successfully')
+          }
+        }
+      } catch (error) {
+        console.error('Exception in profile operations (this is OK, user is still logged in):', error)
       }
-    } catch (error) {
-      console.error('Exception in profile operations (this is OK, user is still logged in):', error)
-    }
+    }, 100)
   }
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
