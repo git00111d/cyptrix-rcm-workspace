@@ -54,14 +54,10 @@ export const LoginForm: React.FC = () => {
           description: 'Welcome back!',
         });
         
-        // Small delay to ensure auth state is updated, then navigate
+        // Navigate immediately and clear loading state
         console.log('LoginForm: Navigating to dashboard...');
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 150);
-        
-        // Keep loading state true during navigation
-        return;
+        navigate('/dashboard');
+        setIsLoading(false);
       } else {
         console.log('LoginForm: Login failed');
         setErrorMsg('Invalid email or password');
