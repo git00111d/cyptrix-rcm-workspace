@@ -125,9 +125,12 @@ export const AdminDashboard: React.FC = () => {
               <Users className="h-4 w-4 mr-2" />
               User Management
             </Button>
-            <Button variant="outline">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Reports
+            <Button 
+              variant="outline"
+              onClick={() => window.open('/admin/documents', '_blank')}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Manage Documents
             </Button>
             <Button variant="outline">
               <Settings className="h-4 w-4 mr-2" />

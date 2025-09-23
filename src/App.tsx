@@ -23,6 +23,7 @@ import { Productivity } from "@/pages/Productivity";
 import { Notifications } from "@/pages/Notifications";
 import { UserManagement } from "@/pages/UserManagement";
 import { Settings } from "@/pages/Settings";
+import { DocumentManagement } from "@/components/admin/DocumentManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -79,6 +80,11 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/admin/documents" element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <DocumentManagement />
+                </ProtectedRoute>
+              } />
             </Route>
             
             {/* Catch all */}

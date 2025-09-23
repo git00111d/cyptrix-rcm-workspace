@@ -5,11 +5,11 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker - use local worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url,
-).toString();
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Configure PDF.js worker with fallback
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -157,14 +157,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
           onLoadError={onDocumentLoadError}
           loading=""
           options={{
-            // Disable text layer for security
-            disableRange: false,
-            disableStream: false,
-            disableAutoFetch: false,
-            disableFontFace: false,
-            // Additional security options
-            cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+            // Disable text layer and downloading for security
+            disableRange: true,
+            disableStream: true,
+            disableAutoFetch: true,
+            disableFontFace: true,
+            // Prevent downloads and copying
+            cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
             cMapPacked: true,
+            // Additional security
+            withCredentials: false,
+            httpHeaders: {
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+              'Pragma': 'no-cache'
+            }
           }}
         >
           <Page
