@@ -5,14 +5,12 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker with more reliable setup
+// Configure PDF.js worker with local fallback
 const configurePDFWorker = () => {
   if (typeof window !== 'undefined') {
-    // Use CDN with fallback - this is more reliable than trying to serve locally
-    const workerUrl = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-    
-    console.log('PDF.js worker configured:', workerUrl);
+    // Use local worker file to avoid CDN issues
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
+    console.log('PDF.js worker configured with local worker');
   }
 };
 
@@ -41,7 +39,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     disableStream: false,
     disableAutoFetch: false,
     disableFontFace: false,
-    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/cmaps/`,
+    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`,
     cMapPacked: true,
     withCredentials: false,
     httpHeaders: {
@@ -49,7 +47,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       'Content-Type': 'application/pdf',
       'Cache-Control': 'private, max-age=60'
     },
-    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`,
+    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/`,
     // Security options
     isEvalSupported: false,
     maxImageSize: 16777216 // 16MB limit
