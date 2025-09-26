@@ -5,12 +5,20 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker with local fallback
+// Configure PDF.js worker with better error handling
 const configurePDFWorker = () => {
   if (typeof window !== 'undefined') {
-    // Use local worker file to avoid CDN issues
-    pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.js';
-    console.log('PDF.js worker configured with local worker');
+    try {
+      // Use a reliable CDN worker URL directly
+      const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+      console.log('PDF.js worker configured with CDN worker:', workerUrl);
+    } catch (error) {
+      console.warn('Failed to configure PDF.js worker:', error);
+      // Fallback: disable worker to use main thread
+      pdfjs.GlobalWorkerOptions.workerSrc = '';
+      console.log('PDF.js worker disabled, using main thread');
+    }
   }
 };
 
@@ -32,6 +40,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [numPages, setNumPages] = useState<number>(0);
   const [scale, setScale] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const [retryKey, setRetryKey] = useState(0);
 
   // Memoize PDF options for better performance and security
   const pdfOptions = useMemo(() => ({
@@ -99,11 +109,29 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     console.error('Error loading PDF:', error);
     setLoading(false);
     
+    // Handle specific worker-related errors with automatic retry
+    if (error.message.includes('worker') || 
+        error.message.includes('Worker') || 
+        error.message.includes('setup') || 
+        error.message.includes('fake worker failed')) {
+      
+      console.warn('PDF.js worker error detected, disabling worker and retrying...');
+      
+      // Disable worker to use main thread
+      pdfjs.GlobalWorkerOptions.workerSrc = '';
+      
+      // Trigger a retry by updating the key
+      setRetryKey(prev => prev + 1);
+      setError('Retrying PDF load...');
+      
+      // Clear error after a brief delay to trigger retry
+      setTimeout(() => setError(''), 100);
+      return;
+    }
+    
     // Provide more specific error messages
     let errorMessage = 'Failed to load PDF document';
-    if (error.message.includes('worker') || error.message.includes('Worker')) {
-      errorMessage = 'PDF rendering engine failed to load. Please refresh the page.';
-    } else if (error.message.includes('Invalid PDF structure')) {
+    if (error.message.includes('Invalid PDF structure')) {
       errorMessage = 'The PDF file appears to be corrupted';
     } else if (error.message.includes('fetch') || error.message.includes('network')) {
       errorMessage = 'Network error loading PDF. Please try again';
@@ -113,6 +141,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
       errorMessage = 'Document storage error. Please contact admin.';
     }
     
+    setError(errorMessage);
     toast.error(errorMessage);
   };
 
@@ -200,10 +229,30 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         )}
         
         <Document
+          key={`${fileUrl}-${retryKey}`} // Add retry key to force remount on retry
           file={fileUrl}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           loading=""
+          error={
+            error ? (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <Shield className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium text-foreground mb-2">Document Loading Failed</p>
+                <p className="text-muted-foreground mb-4">{error}</p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setError('');
+                    setRetryKey(prev => prev + 1);
+                    setLoading(true);
+                  }}
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : null
+          }
           options={pdfOptions}
         >
           <Page
