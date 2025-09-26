@@ -247,7 +247,7 @@ export const EnhancedCodingPanel: React.FC<EnhancedCodingPanelProps> = ({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Code className="h-5 w-5" />
-            Medical Codes - Page {pageNumber}
+            HCC
           </CardTitle>
           
           <div className="flex items-center gap-2">
