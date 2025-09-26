@@ -227,7 +227,7 @@ export const EnhancedCodingPanel: React.FC<EnhancedCodingPanelProps> = ({
     setHasChanges(true);
   };
 
-  const hasValidCodes = pageCode.icd_codes.length > 0 || pageCode.cpt_codes.length > 0;
+  const hasValidCodes = pageCode.notes.trim().length > 0;
 
   if (isLoading) {
     return (
@@ -283,83 +283,6 @@ export const EnhancedCodingPanel: React.FC<EnhancedCodingPanelProps> = ({
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* ICD-10 Codes Section */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium">ICD-10 Diagnosis Codes</h3>
-          
-          {!isReadOnly && (
-            <CodeAutocomplete
-              codeType="ICD10"
-              placeholder="Search ICD-10 codes (e.g., E11.9 or diabetes)"
-              onAddCode={handleAddIcdCode}
-              existingCodes={pageCode.icd_codes}
-              disabled={isReadOnly}
-            />
-          )}
-
-          <div className="min-h-[60px] p-3 border rounded-md bg-muted/30">
-            <div className="flex flex-wrap gap-2">
-              {pageCode.icd_codes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No ICD-10 codes added</p>
-              ) : (
-                pageCode.icd_codes.map((code, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {code}
-                    {!isReadOnly && (
-                      <button
-                        onClick={() => handleRemoveIcdCode(code)}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </Badge>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* CPT Codes Section */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium">CPT Procedure Codes</h3>
-          
-          {!isReadOnly && (
-            <CodeAutocomplete
-              codeType="CPT"
-              placeholder="Search CPT codes (e.g., 99213 or office visit)"
-              onAddCode={handleAddCptCode}
-              existingCodes={pageCode.cpt_codes}
-              disabled={isReadOnly}
-            />
-          )}
-
-          <div className="min-h-[60px] p-3 border rounded-md bg-muted/30">
-            <div className="flex flex-wrap gap-2">
-              {pageCode.cpt_codes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No CPT codes added</p>
-              ) : (
-                pageCode.cpt_codes.map((code, index) => (
-                  <Badge key={index} variant="outline" className="flex items-center gap-1">
-                    {code}
-                    {!isReadOnly && (
-                      <button
-                        onClick={() => handleRemoveCptCode(code)}
-                        className="ml-1 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </Badge>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <Separator />
 
         {/* Notes Section */}
         <div className="space-y-3">
