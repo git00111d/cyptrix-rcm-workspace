@@ -5,24 +5,24 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker with better error handling
-const configurePDFWorker = () => {
-  if (typeof window !== 'undefined') {
-    try {
-      // Use a reliable CDN worker URL directly
-      const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-      console.log('PDF.js worker configured with CDN worker:', workerUrl);
-    } catch (error) {
-      console.warn('Failed to configure PDF.js worker:', error);
-      // Fallback: disable worker to use main thread
-      pdfjs.GlobalWorkerOptions.workerSrc = '';
-      console.log('PDF.js worker disabled, using main thread');
-    }
+// Configure PDF.js worker immediately - this must happen before any PDF operations
+const setupPDFWorker = () => {
+  try {
+    // First, try to set a CDN worker
+    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    console.log('PDF.js worker configured with CDN:', workerUrl);
+    return true;
+  } catch (error) {
+    console.warn('Failed to configure CDN worker, disabling worker:', error);
+    // Fallback: disable worker completely to use main thread
+    pdfjs.GlobalWorkerOptions.workerSrc = '';
+    return false;
   }
 };
 
-configurePDFWorker();
+// Initialize worker immediately when module loads
+setupPDFWorker();
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -42,6 +42,15 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [retryKey, setRetryKey] = useState(0);
+
+  // Ensure worker is configured before any PDF operations
+  useEffect(() => {
+    // Double-check worker configuration on component mount
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      console.warn('Worker not configured on mount, setting fallback...');
+      pdfjs.GlobalWorkerOptions.workerSrc = '';
+    }
+  }, []);
 
   // Memoize PDF options for better performance and security
   const pdfOptions = useMemo(() => ({
@@ -112,20 +121,25 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     // Handle specific worker-related errors with automatic retry
     if (error.message.includes('worker') || 
         error.message.includes('Worker') || 
+        error.message.includes('GlobalWorkerOptions') ||
+        error.message.includes('workerSrc') ||
         error.message.includes('setup') || 
         error.message.includes('fake worker failed')) {
       
       console.warn('PDF.js worker error detected, disabling worker and retrying...');
       
-      // Disable worker to use main thread
+      // Disable worker completely to use main thread
       pdfjs.GlobalWorkerOptions.workerSrc = '';
       
       // Trigger a retry by updating the key
       setRetryKey(prev => prev + 1);
-      setError('Retrying PDF load...');
+      setError('Retrying PDF load without worker...');
       
       // Clear error after a brief delay to trigger retry
-      setTimeout(() => setError(''), 100);
+      setTimeout(() => {
+        setError('');
+        setLoading(true);
+      }, 500);
       return;
     }
     
