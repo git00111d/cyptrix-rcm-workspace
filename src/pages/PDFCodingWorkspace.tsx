@@ -5,8 +5,8 @@ import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { PDFViewer } from '@/components/pdf/PDFViewer';
 import { PageCodeEditor } from '@/components/coding/PageCodeEditor';
+import { FileText } from 'lucide-react';
 
 interface Document {
   id: string;
@@ -153,15 +153,11 @@ export const PDFCodingWorkspace: React.FC = () => {
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* PDF Viewer */}
-          <div>
-            {signedUrl && (
-              <PDFViewer
-                fileUrl={signedUrl}
-                currentPage={currentPage}
-                onPageChange={handlePageChange}
-              />
-            )}
+          {/* Document Viewer Placeholder */}
+          <div className="border rounded-lg p-8 bg-muted/20 flex flex-col items-center justify-center min-h-[600px]">
+            <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Document Viewer Disabled</h3>
+            <p className="text-sm text-muted-foreground text-center">PDF viewing has been temporarily disabled. Please use alternative document viewing methods.</p>
           </div>
 
           {/* Coding Panel */}

@@ -13,12 +13,9 @@ import {
   Maximize2,
   RotateCw
 } from 'lucide-react';
-import { PDFViewer } from '@/components/pdf/PDFViewer';
-import { pdfjs } from 'react-pdf';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { loadPDFSecurely } from '@/utils/pdfLoader';
 
 interface Document {
   id: string;
@@ -49,77 +46,12 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
   const [rotation, setRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Memoize PDF options to prevent unnecessary reloads
-  const pdfOptions = useMemo(() => ({
-    disableRange: false,
-    disableStream: false,
-    disableAutoFetch: false,
-    disableFontFace: false,
-    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/cmaps/`,
-    cMapPacked: true,
-    withCredentials: false,
-    httpHeaders: {
-      'Accept': 'application/pdf',
-      'Content-Type': 'application/pdf'
-    },
-    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/standard_fonts/`
-  }), []);
-
-  // Cleanup function to revoke blob URLs properly
+  // Cleanup function 
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
+    // PDF viewing disabled - no cleanup needed
+    setIsLoading(false);
+  }, [document.id]);
 
-    const loadPdf = async () => {
-      cleanup = await fetchPdfUrl();
-    };
-
-    loadPdf();
-    
-    // Cleanup function to revoke blob URLs
-    return () => {
-      if (cleanup) {
-        cleanup();
-      }
-      if (pdfUrl && pdfUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(pdfUrl);
-      }
-    };
-  }, [document.id, document.file_path]);
-
-  const fetchPdfUrl = async () => {
-    try {
-      setIsLoading(true);
-      console.log('Fetching PDF for document:', document.id, document.file_path);
-      
-      // Clean up any existing blob URL
-      if (pdfUrl && pdfUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(pdfUrl);
-        setPdfUrl('');
-      }
-      
-      const result = await loadPDFSecurely(document.file_path, user?.userId);
-      if (result) {
-        console.log('PDF loaded successfully, setting URL:', result.blobUrl);
-        setPdfUrl(result.blobUrl);
-        
-        // Store cleanup function for later use
-        const cleanup = result.cleanup;
-        return () => {
-          cleanup();
-          setPdfUrl('');
-        };
-      } else {
-        console.error('Failed to load PDF - no result returned');
-        toast.error('This document could not be displayed. Please re-upload or contact admin.');
-      }
-      
-    } catch (error) {
-      console.error('Error fetching PDF:', error);
-      toast.error(`Failed to load document: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleZoomIn = () => {
     setZoom(prev => [Math.min(prev[0] + 25, 300)]);
@@ -279,31 +211,11 @@ export const EnhancedDocumentViewer: React.FC<EnhancedDocumentViewerProps> = ({
             transform: `rotate(${rotation}deg)`
           }}
         >
-          {pdfUrl ? (
-            <PDFViewer
-              fileUrl={pdfUrl}
-              currentPage={currentPage}
-              onPageChange={onPageChange}
-              className="h-full"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full bg-muted/10 rounded-lg">
-              <div className="text-center p-8">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-lg font-medium text-foreground mb-2">
-                  Document Unavailable
-                </p>
-                <p className="text-muted-foreground mb-4">
-                  This document could not be displayed. Please re-upload or contact admin.
-                </p>
-                {user?.role === 'ADMIN' && (
-                  <p className="text-xs text-muted-foreground border-t pt-4 mt-4">
-                    Admin: Check console logs for detailed error information
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
+            <FileText className="h-16 w-16 mb-4" />
+            <h3 className="text-lg font-medium mb-2">Document Viewer Disabled</h3>
+            <p className="text-sm text-center">PDF viewing has been temporarily disabled. Please use alternative document viewing methods.</p>
+          </div>
         </div>
       </CardContent>
     </Card>
