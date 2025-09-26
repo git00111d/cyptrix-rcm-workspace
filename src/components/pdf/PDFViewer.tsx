@@ -5,24 +5,19 @@ import { Card } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Configure PDF.js worker immediately - this must happen before any PDF operations
-const setupPDFWorker = () => {
-  try {
-    // First, try to set a CDN worker
-    const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-    console.log('PDF.js worker configured with CDN:', workerUrl);
-    return true;
-  } catch (error) {
-    console.warn('Failed to configure CDN worker, disabling worker:', error);
-    // Fallback: disable worker completely to use main thread
-    pdfjs.GlobalWorkerOptions.workerSrc = '';
-    return false;
-  }
-};
+// CRITICAL: Disable PDF.js worker immediately to avoid worker configuration errors
+// This must be the first thing that happens after importing pdfjs
+pdfjs.GlobalWorkerOptions.workerSrc = ''; // Empty string disables worker
 
-// Initialize worker immediately when module loads
-setupPDFWorker();
+// Alternative approach: Use main thread processing only
+if (typeof window !== 'undefined') {
+  // Ensure no worker is used - this forces main thread processing
+  Object.defineProperty(pdfjs.GlobalWorkerOptions, 'workerSrc', {
+    value: '',
+    writable: true,
+    configurable: true
+  });
+}
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -43,13 +38,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const [error, setError] = useState<string>('');
   const [retryKey, setRetryKey] = useState(0);
 
-  // Ensure worker is configured before any PDF operations
+  // Force worker configuration on every render as a safety measure
   useEffect(() => {
-    // Double-check worker configuration on component mount
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      console.warn('Worker not configured on mount, setting fallback...');
-      pdfjs.GlobalWorkerOptions.workerSrc = '';
-    }
+    console.log('PDFViewer: Ensuring worker is disabled...');
+    pdfjs.GlobalWorkerOptions.workerSrc = '';
   }, []);
 
   // Memoize PDF options for better performance and security
@@ -58,18 +50,19 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     disableStream: false,
     disableAutoFetch: false,
     disableFontFace: false,
-    cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/`,
-    cMapPacked: true,
+    // Remove worker-dependent options
     withCredentials: false,
     httpHeaders: {
       'Accept': 'application/pdf',
       'Content-Type': 'application/pdf',
       'Cache-Control': 'private, max-age=60'
     },
-    standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/`,
     // Security options
     isEvalSupported: false,
-    maxImageSize: 16777216 // 16MB limit
+    maxImageSize: 16777216, // 16MB limit
+    // Force main thread processing
+    useOnlyCssZoom: true,
+    enableXfa: false
   }), []);
 
   // Security: Disable right-click, keyboard shortcuts, and text selection
@@ -110,6 +103,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setLoading(false);
+    setError(''); // Clear any previous errors
     console.log(`PDF loaded successfully with ${numPages} pages`);
     toast.success(`PDF loaded with ${numPages} pages`);
   };
@@ -118,32 +112,25 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     console.error('Error loading PDF:', error);
     setLoading(false);
     
-    // Handle specific worker-related errors with automatic retry
-    if (error.message.includes('worker') || 
-        error.message.includes('Worker') || 
-        error.message.includes('GlobalWorkerOptions') ||
+    // Handle worker configuration errors by ensuring worker is disabled
+    if (error.message.includes('GlobalWorkerOptions') || 
         error.message.includes('workerSrc') ||
-        error.message.includes('setup') || 
-        error.message.includes('fake worker failed')) {
+        error.message.includes('worker') || 
+        error.message.includes('Worker')) {
       
-      console.warn('PDF.js worker error detected, disabling worker and retrying...');
-      
-      // Disable worker completely to use main thread
+      console.warn('Worker-related error detected, forcing worker disable...');
       pdfjs.GlobalWorkerOptions.workerSrc = '';
       
-      // Trigger a retry by updating the key
-      setRetryKey(prev => prev + 1);
-      setError('Retrying PDF load without worker...');
-      
-      // Clear error after a brief delay to trigger retry
+      // Retry after a short delay
       setTimeout(() => {
+        setRetryKey(prev => prev + 1);
         setError('');
         setLoading(true);
-      }, 500);
+      }, 100);
       return;
     }
     
-    // Provide more specific error messages
+    // Handle other errors
     let errorMessage = 'Failed to load PDF document';
     if (error.message.includes('Invalid PDF structure')) {
       errorMessage = 'The PDF file appears to be corrupted';
