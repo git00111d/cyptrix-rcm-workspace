@@ -66,14 +66,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if the requesting user is an admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Check if the requesting user is an admin using security definer function
+    const { data: isAdmin, error: adminCheckError } = await supabase
+      .rpc('is_user_admin', { user_id: user.id })
 
-    if (profileError || profile?.role !== 'ADMIN') {
+    if (adminCheckError) {
+      console.error('Error checking admin status:', adminCheckError)
+      return new Response(
+        JSON.stringify({ error: 'Error verifying admin privileges' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!isAdmin) {
       return new Response(
         JSON.stringify({ error: 'Insufficient privileges. Admin access required.' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
