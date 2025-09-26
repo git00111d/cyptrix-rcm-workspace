@@ -137,7 +137,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Proxy error:', error)
-    return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), { 
+    return new Response(JSON.stringify({ error: 'Internal server error', details: error instanceof Error ? error.message : String(error) }), { 
       status: 500, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

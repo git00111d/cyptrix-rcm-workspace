@@ -55,29 +55,31 @@ export const AddUserDialog: React.FC<AddUserDialogProps> = ({
 
     setIsLoading(true);
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true,
-        user_metadata: {
+      // Call the edge function to create user
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch(`https://bnptlhgfplqisbnumzpf.supabase.co/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
           name: formData.name,
-        }
+          role: formData.role,
+        }),
       });
 
-      if (authError) throw authError;
+      const result = await response.json();
 
-      if (authData.user) {
-        // Update the profile with the correct role
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            name: formData.name,
-            role: formData.role,
-          })
-          .eq('id', authData.user.id);
-
-        if (profileError) throw profileError;
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user');
       }
 
       toast({

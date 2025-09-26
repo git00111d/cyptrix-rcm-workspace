@@ -55,12 +55,30 @@ export const ChangePasswordDialog: React.FC<ChangePasswordDialogProps> = ({
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.admin.updateUserById(
-        user.userId,
-        { password: formData.password }
-      );
+      // Call the edge function to change password
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session) {
+        throw new Error('No active session');
+      }
 
-      if (error) throw error;
+      const response = await fetch(`https://bnptlhgfplqisbnumzpf.supabase.co/functions/v1/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify({
+          userId: user.userId,
+          password: formData.password,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update password');
+      }
 
       toast({
         title: "Password Updated",
