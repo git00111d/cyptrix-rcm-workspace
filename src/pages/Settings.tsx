@@ -18,9 +18,11 @@ import {
   Smartphone
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export const Settings: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="p-6 space-y-6">
@@ -228,6 +230,55 @@ export const Settings: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Admin Settings - User Management */}
+          {user?.role === 'ADMIN' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  User Management
+                </CardTitle>
+                <CardDescription>
+                  Manage system users, roles, and permissions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Access comprehensive user management tools including adding new users, changing passwords, and managing roles.
+                </p>
+                
+                <div className="grid grid-cols-1 gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => navigate('/users')}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Manage All Users
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => navigate('/users')}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Reset User Passwords
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start"
+                    onClick={() => navigate('/users')}
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Change User Roles
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Branding Settings (Admin only) */}
           {user?.role === 'ADMIN' && (
