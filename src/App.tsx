@@ -53,7 +53,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/coding" element={
-                <ProtectedRoute allowedRoles={['EMPLOYEE', 'AUDITOR']}>
+                <ProtectedRoute allowedRoles={['EMPLOYEE']}>
                   <CodingWorkspace />
                 </ProtectedRoute>
               } />

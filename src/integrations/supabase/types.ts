@@ -41,6 +41,91 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_submissions: {
+        Row: {
+          audited_at: string | null
+          auditor_comments: string | null
+          auditor_id: string | null
+          created_at: string | null
+          document_id: string
+          employee_id: string
+          id: string
+          status: string
+          submission_data: Json
+          updated_at: string | null
+        }
+        Insert: {
+          audited_at?: string | null
+          auditor_comments?: string | null
+          auditor_id?: string | null
+          created_at?: string | null
+          document_id: string
+          employee_id: string
+          id?: string
+          status?: string
+          submission_data: Json
+          updated_at?: string | null
+        }
+        Update: {
+          audited_at?: string | null
+          auditor_comments?: string | null
+          auditor_id?: string | null
+          created_at?: string | null
+          document_id?: string
+          employee_id?: string
+          id?: string
+          status?: string
+          submission_data?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_submissions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_decisions: {
+        Row: {
+          comments: string | null
+          created_at: string | null
+          decision: string
+          document_id: string
+          employee_id: string
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string | null
+          decision: string
+          document_id: string
+          employee_id: string
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string | null
+          decision?: string
+          document_id?: string
+          employee_id?: string
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_decisions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_queries: {
         Row: {
           created_at: string | null
@@ -128,6 +213,50 @@ export type Database = {
             columns: ["provider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      icd_page_codes: {
+        Row: {
+          comments: string | null
+          created_at: string | null
+          document_id: string
+          employee_id: string
+          icd_codes: string[] | null
+          id: string
+          page_number: number
+          supporting_files: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string | null
+          document_id: string
+          employee_id: string
+          icd_codes?: string[] | null
+          id?: string
+          page_number: number
+          supporting_files?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string | null
+          document_id?: string
+          employee_id?: string
+          icd_codes?: string[] | null
+          id?: string
+          page_number?: number
+          supporting_files?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icd_page_codes_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
