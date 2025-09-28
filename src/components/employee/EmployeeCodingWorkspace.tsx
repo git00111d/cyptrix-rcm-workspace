@@ -19,6 +19,7 @@ interface Document {
   page_count: number;
   status: string;
   provider_id: string;
+  uploaded_at: string | null;
 }
 
 interface IcdPageCode {
@@ -33,12 +34,9 @@ export const EmployeeCodingWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  // Document identification and decision
-  const [documentId, setDocumentId] = useState('');
-  const [document, setDocument] = useState<Document | null>(null);
-  const [decision, setDecision] = useState<'ACCEPTED' | 'REJECTED' | null>(null);
-  const [decisionComments, setDecisionComments] = useState('');
-  const [isDocumentAccepted, setIsDocumentAccepted] = useState(false);
+  // Document selection
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   
   // ICD coding
   const [currentPageNumber, setCurrentPageNumber] = useState(1);
@@ -54,69 +52,35 @@ export const EmployeeCodingWorkspace: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchDocument = async () => {
-    if (!documentId.trim()) return;
-    
+  useEffect(() => {
+    fetchAvailableDocuments();
+  }, []);
+
+  const fetchAvailableDocuments = async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('documents')
         .select('*')
-        .eq('id', documentId.trim())
-        .single();
+        .eq('status', 'UPLOADED')
+        .order('uploaded_at', { ascending: false });
 
-      if (error) {
-        toast.error('Document not found');
-        setDocument(null);
-        return;
-      }
+      if (error) throw error;
 
-      setDocument(data);
-      toast.success('Document loaded successfully');
+      setDocuments(data || []);
     } catch (error) {
-      console.error('Error fetching document:', error);
-      toast.error('Failed to fetch document');
+      console.error('Error fetching documents:', error);
+      toast.error('Failed to fetch available documents');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDocumentDecision = async () => {
-    if (!decision || !document || !user) {
-      toast.error('Please select Accept or Reject');
-      return;
-    }
-
-    if (decision === 'REJECTED' && !decisionComments.trim()) {
-      toast.error('Comments are required when rejecting a document');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('document_decisions')
-        .upsert({
-          document_id: document.id,
-          employee_id: (user as any)?.id || user?.email,
-          decision,
-          comments: decisionComments || null,
-        });
-
-      if (error) throw error;
-
-      setIsDocumentAccepted(decision === 'ACCEPTED');
-      toast.success(
-        decision === 'ACCEPTED' 
-          ? 'Document accepted. You can now proceed to ICD coding.' 
-          : 'Document rejected successfully.'
-      );
-    } catch (error) {
-      console.error('Error saving decision:', error);
-      toast.error('Failed to save decision');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleDocumentSelect = (document: Document) => {
+    setSelectedDocument(document);
+    setCurrentPageNumber(1);
+    setIcdPageCodes([]);
+    toast.success(`Selected document: ${document.filename}`);
   };
 
   const handleAddIcdCode = () => {
@@ -194,8 +158,15 @@ export const EmployeeCodingWorkspace: React.FC = () => {
   };
 
   const handleSubmitForAudit = async () => {
-    if (!document || !user || icdPageCodes.length === 0) {
+    if (!selectedDocument || !user || icdPageCodes.length === 0) {
       toast.error('Please add at least one page with ICD codes before submitting');
+      return;
+    }
+
+    // Check if all pages have ICD codes
+    const totalPages = selectedDocument.page_count;
+    if (icdPageCodes.length !== totalPages) {
+      toast.error(`Please add ICD codes for all ${totalPages} pages`);
       return;
     }
 
@@ -203,12 +174,12 @@ export const EmployeeCodingWorkspace: React.FC = () => {
     try {
       // Save ICD page codes to database
       const icdPageCodesData = icdPageCodes.map(entry => ({
-        document_id: document.id,
+        document_id: selectedDocument.id,
         employee_id: (user as any)?.id || user?.email,
         page_number: entry.pageNumber,
         icd_codes: entry.icdCodes,
         comments: entry.comments || null,
-        supporting_files: entry.supportingFiles, // Already strings now
+        supporting_files: entry.supportingFiles,
       }));
 
       // Insert/update ICD page codes
@@ -222,14 +193,10 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       const { error: submissionError } = await supabase
         .from('audit_submissions')
         .insert([{
-          document_id: document.id,
+          document_id: selectedDocument.id,
           employee_id: (user as any)?.id || user?.email,
           submission_data: {
             icd_page_codes: icdPageCodes,
-            document_decision: {
-              decision,
-              comments: decisionComments,
-            },
           } as any,
           status: 'PENDING',
         }]);
@@ -240,24 +207,21 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       const { error: docError } = await supabase
         .from('documents')
         .update({ status: 'CODING_COMPLETE' })
-        .eq('id', document.id);
+        .eq('id', selectedDocument.id);
 
       if (docError) throw docError;
 
       toast.success('Document submitted for audit successfully');
       
-      // Reset form completely
-      setDocument(null);
-      setDocumentId('');
-      setDecision(null);
-      setDecisionComments('');
-      setIsDocumentAccepted(false);
+      // Reset form and refresh documents
+      setSelectedDocument(null);
       setIcdPageCodes([]);
       setCurrentPageNumber(1);
       setCurrentIcdCodes(['']);
       setCurrentComments('');
       setCurrentSupportingFiles([]);
       setCurrentSupportingFileNames([]);
+      fetchAvailableDocuments(); // Refresh the list
       
     } catch (error) {
       console.error('Error submitting for audit:', error);
@@ -280,7 +244,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
             Employee Coding Workspace
           </h1>
           <p className="text-muted-foreground">
-            Document identification, decision making, and ICD-10 coding workflow
+            Select documents and enter ICD-10 codes for each page
           </p>
         </div>
         
@@ -290,101 +254,59 @@ export const EmployeeCodingWorkspace: React.FC = () => {
         </Button>
       </div>
 
-      {/* Document Identification */}
+      {/* Document Selection */}
       <Card>
         <CardHeader>
-          <CardTitle>Document Identification</CardTitle>
-          <CardDescription>Enter the Document ID to begin the coding process</CardDescription>
+          <CardTitle>Select Document</CardTitle>
+          <CardDescription>Choose a document to begin ICD-10 coding</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Label htmlFor="documentId">Enter Document ID</Label>
-              <Input
-                id="documentId"
-                value={documentId}
-                onChange={(e) => setDocumentId(e.target.value)}
-                placeholder="Enter document ID..."
-              />
+          {isLoading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+              <p className="text-sm text-muted-foreground mt-2">Loading documents...</p>
             </div>
-            <div className="flex items-end">
-              <Button 
-                onClick={fetchDocument} 
-                disabled={!documentId.trim() || isLoading}
-              >
-                {isLoading ? 'Loading...' : 'Load Document'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Document Info */}
-          {document && (
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-medium">{document.filename}</h3>
-              <p className="text-sm text-muted-foreground">
-                {document.page_count} pages • Status: {document.status}
+          ) : documents.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No documents available</h3>
+              <p className="text-muted-foreground">
+                No uploaded documents are available for coding at this time.
               </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {documents.map((document) => (
+                <div
+                  key={document.id}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedDocument?.id === document.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-muted/50'
+                  }`}
+                  onClick={() => handleDocumentSelect(document)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium">{document.filename}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {document.page_count} pages • Uploaded: {new Date(document.uploaded_at || '').toLocaleDateString()}
+                      </p>
+                    </div>
+                    {selectedDocument?.id === document.id && (
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Document Decision */}
-      {document && !isDocumentAccepted && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Document Decision</CardTitle>
-            <CardDescription>Accept or reject the document for coding</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Button
-                variant={decision === 'ACCEPTED' ? 'default' : 'outline'}
-                className={decision === 'ACCEPTED' ? 'bg-green-600 hover:bg-green-700' : ''}
-                onClick={() => setDecision('ACCEPTED')}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Accept Document
-              </Button>
-              <Button
-                variant={decision === 'REJECTED' ? 'destructive' : 'outline'}
-                onClick={() => setDecision('REJECTED')}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject Document
-              </Button>
-            </div>
-
-            {decision && (
-              <div>
-                <Label htmlFor="decisionComments">
-                  Comments {decision === 'REJECTED' && <span className="text-destructive">*</span>}
-                </Label>
-                <Textarea
-                  id="decisionComments"
-                  value={decisionComments}
-                  onChange={(e) => setDecisionComments(e.target.value)}
-                  placeholder={
-                    decision === 'REJECTED' 
-                      ? 'Please provide reasons for rejection...' 
-                      : 'Optional comments...'
-                  }
-                  rows={3}
-                />
-              </div>
-            )}
-
-            {decision && (
-              <Button onClick={handleDocumentDecision} disabled={isLoading} className="w-full">
-                {isLoading ? 'Saving...' : `Submit ${decision === 'ACCEPTED' ? 'Acceptance' : 'Rejection'}`}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* ICD-10 Coding Section */}
-      {isDocumentAccepted && (
+      {selectedDocument && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Left Panel - ICD Coding Form */}
           <Card>
@@ -401,7 +323,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
                   value={currentPageNumber}
                   onChange={(e) => setCurrentPageNumber(parseInt(e.target.value) || 1)}
                   min="1"
-                  max={document?.page_count || 1}
+                  max={selectedDocument?.page_count || 1}
                 />
               </div>
 
@@ -492,12 +414,14 @@ export const EmployeeCodingWorkspace: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>HCC</CardTitle>
-              <CardDescription>ICD-10 Page & Code Table</CardDescription>
+              <CardDescription>
+                ICD-10 Page & Code Table - {icdPageCodes.length}/{selectedDocument?.page_count || 0} pages completed
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {icdPageCodes.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No pages added yet. Use the form on the left to add pages with ICD codes.
+                  No pages added yet. Use the form on the left to add ICD codes for each page.
                 </div>
               ) : (
                 <Table>
@@ -550,7 +474,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       )}
 
       {/* Submit for Audit */}
-      {isDocumentAccepted && icdPageCodes.length > 0 && (
+      {selectedDocument && icdPageCodes.length > 0 && (
         <Card>
           <CardContent className="pt-6">
             <Button 
