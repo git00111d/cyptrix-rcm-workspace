@@ -49,20 +49,29 @@ export const AuditSubmissionsPanel: React.FC = () => {
         .from('audit_submissions')
         .select(`
           *,
-          documents (filename, page_count),
-          profiles!audit_submissions_employee_id_fkey (name, email)
+          documents!inner(filename, page_count)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Transform the data to match our interface
-      const transformedData = data?.map(item => ({
-        ...item,
-        employees: item.profiles,
-      })) as AuditSubmission[] || [];
+      // Get employee data separately
+      const submissionsWithEmployees = await Promise.all(
+        (data || []).map(async (submission) => {
+          const { data: employeeData } = await supabase
+            .from('profiles')
+            .select('name, email')
+            .eq('id', submission.employee_id)
+            .single();
+          
+          return {
+            ...submission,
+            employees: employeeData || { name: 'Unknown', email: 'unknown@example.com' },
+          };
+        })
+      );
       
-      setSubmissions(transformedData);
+      setSubmissions(submissionsWithEmployees as AuditSubmission[]);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       toast.error('Failed to load audit submissions');

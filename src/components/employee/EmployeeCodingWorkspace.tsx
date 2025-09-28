@@ -26,7 +26,7 @@ interface IcdPageCode {
   pageNumber: number;
   icdCodes: string[];
   comments: string;
-  supportingFiles: File[];
+  supportingFiles: string[]; // Store file names as strings for JSON compatibility
 }
 
 export const EmployeeCodingWorkspace: React.FC = () => {
@@ -45,6 +45,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
   const [currentIcdCodes, setCurrentIcdCodes] = useState<string[]>(['']);
   const [currentComments, setCurrentComments] = useState('');
   const [currentSupportingFiles, setCurrentSupportingFiles] = useState<File[]>([]);
+  const [currentSupportingFileNames, setCurrentSupportingFileNames] = useState<string[]>([]);
   
   // ICD Page & Code Table
   const [icdPageCodes, setIcdPageCodes] = useState<IcdPageCode[]>([]);
@@ -136,13 +137,16 @@ export const EmployeeCodingWorkspace: React.FC = () => {
     const files = event.target.files;
     if (files) {
       const newFiles = Array.from(files);
+      const newFileNames = newFiles.map(file => file.name);
       setCurrentSupportingFiles(prev => [...prev, ...newFiles]);
+      setCurrentSupportingFileNames(prev => [...prev, ...newFileNames]);
       toast.success(`${newFiles.length} file(s) added`);
     }
   };
 
   const removeSupportingFile = (index: number) => {
     setCurrentSupportingFiles(prev => prev.filter((_, i) => i !== index));
+    setCurrentSupportingFileNames(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleAddPageAndCodes = () => {
@@ -161,7 +165,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       pageNumber: currentPageNumber,
       icdCodes: currentIcdCodes.filter(code => code.trim()),
       comments: currentComments,
-      supportingFiles: [...currentSupportingFiles],
+      supportingFiles: currentSupportingFileNames,
     };
 
     if (existingPageIndex >= 0) {
@@ -180,6 +184,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
     setCurrentIcdCodes(['']);
     setCurrentComments('');
     setCurrentSupportingFiles([]);
+    setCurrentSupportingFileNames([]);
     setCurrentPageNumber(currentPageNumber + 1);
   };
 
@@ -203,7 +208,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
         page_number: entry.pageNumber,
         icd_codes: entry.icdCodes,
         comments: entry.comments || null,
-        supporting_files: entry.supportingFiles.map(file => file.name), // Store file names for now
+        supporting_files: entry.supportingFiles, // Already strings now
       }));
 
       // Insert/update ICD page codes
@@ -216,7 +221,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       // Create audit submission
       const { error: submissionError } = await supabase
         .from('audit_submissions')
-        .insert({
+        .insert([{
           document_id: document.id,
           employee_id: (user as any)?.id || user?.email,
           submission_data: {
@@ -225,8 +230,9 @@ export const EmployeeCodingWorkspace: React.FC = () => {
               decision,
               comments: decisionComments,
             },
-          },
-        });
+          } as any,
+          status: 'PENDING',
+        }]);
 
       if (submissionError) throw submissionError;
 
@@ -240,7 +246,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
 
       toast.success('Document submitted for audit successfully');
       
-      // Reset form
+      // Reset form completely
       setDocument(null);
       setDocumentId('');
       setDecision(null);
@@ -248,6 +254,10 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       setIsDocumentAccepted(false);
       setIcdPageCodes([]);
       setCurrentPageNumber(1);
+      setCurrentIcdCodes(['']);
+      setCurrentComments('');
+      setCurrentSupportingFiles([]);
+      setCurrentSupportingFileNames([]);
       
     } catch (error) {
       console.error('Error submitting for audit:', error);
@@ -320,7 +330,7 @@ export const EmployeeCodingWorkspace: React.FC = () => {
       </Card>
 
       {/* Document Decision */}
-      {document && !isDocumentAccepted && decision !== 'REJECTED' && (
+      {document && !isDocumentAccepted && (
         <Card>
           <CardHeader>
             <CardTitle>Document Decision</CardTitle>
