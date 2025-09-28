@@ -50,7 +50,7 @@ export const AuditSubmissionsPanel: React.FC = () => {
         .select(`
           *,
           documents (filename, page_count),
-          profiles:employee_id (name, email)
+          profiles!audit_submissions_employee_id_fkey (name, email)
         `)
         .order('created_at', { ascending: false });
 
