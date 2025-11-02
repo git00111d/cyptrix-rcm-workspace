@@ -7,109 +7,84 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { LoginCredentials, UserRole } from '@/types/user';
-import { Shield, Lock, Mail, User, UserPlus } from 'lucide-react';
+import { UserRole } from '@/types/user';
+import { Shield, Mail, User, UserPlus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
-interface SignupData extends LoginCredentials {
+interface SignupData {
+  email: string;
   name: string;
   role: UserRole;
-  confirmPassword: string;
 }
 
 export const LoginForm: React.FC = () => {
-  const [credentials, setCredentials] = useState<LoginCredentials>({
-    email: '',
-    password: '',
-  });
+  const [email, setEmail] = useState('');
   const [signupData, setSignupData] = useState<SignupData>({
     email: '',
-    password: '',
-    confirmPassword: '',
     name: '',
     role: 'PROVIDER',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string>(''); // NEW: show errors under button
-  const { login } = useAuth();
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [successMsg, setSuccessMsg] = useState<string>('');
   const navigate = useNavigate();
 
-  /** ----------------- LOGIN ------------------ */
+  /** ----------------- LOGIN WITH MAGIC LINK ------------------ */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg('');
+    setSuccessMsg('');
 
     try {
-      console.log('LoginForm: Calling login function...');
-      const success = await login(credentials);
-      console.log('LoginForm: Login function returned:', success);
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
 
-      if (success) {
-        console.log('LoginForm: Login success, showing toast and navigating...');
+      if (error) {
+        setErrorMsg(error.message);
         toast({
-          title: 'Login Successful',
-          description: 'Welcome back!',
-        });
-        
-        // Navigate immediately and clear loading state
-        console.log('LoginForm: Navigating to dashboard...');
-        navigate('/dashboard');
-        setIsLoading(false);
-      } else {
-        console.log('LoginForm: Login failed');
-        setErrorMsg('Invalid email or password');
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid email or password',
+          title: 'Error',
+          description: error.message,
           variant: 'destructive',
         });
-        setIsLoading(false);
+      } else {
+        setSuccessMsg('Check your email for the magic link!');
+        toast({
+          title: 'Magic Link Sent',
+          description: 'Check your email for the sign-in link',
+        });
+        setEmail('');
       }
     } catch (error: any) {
-      console.error('LoginForm: Login error:', error);
       setErrorMsg(error.message || 'An unexpected error occurred');
       toast({
-        title: 'Login Error',
+        title: 'Error',
         description: error.message || 'An unexpected error occurred',
         variant: 'destructive',
       });
+    } finally {
       setIsLoading(false);
     }
   };
 
-  /** ----------------- SIGN UP ------------------ */
+  /** ----------------- SIGN UP WITH MAGIC LINK ------------------ */
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (signupData.password !== signupData.confirmPassword) {
-      toast({
-        title: 'Password Mismatch',
-        description: 'Passwords do not match',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (signupData.password.length < 6) {
-      toast({
-        title: 'Password Too Short',
-        description: 'Password must be at least 6 characters long',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsSigningUp(true);
+    setErrorMsg('');
+    setSuccessMsg('');
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signInWithOtp({
         email: signupData.email,
-        password: signupData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             name: signupData.name,
             role: signupData.role,
@@ -126,16 +101,13 @@ export const LoginForm: React.FC = () => {
         return;
       }
 
-      if (data.user) {
-        toast({
-          title: 'Account Created!',
-          description:
-            'Please check your email to confirm your account, then try signing in.',
-        });
+      setSuccessMsg('Check your email for the magic link!');
+      toast({
+        title: 'Magic Link Sent',
+        description: 'Check your email to complete signup',
+      });
 
-        // Switch to login tab and prefill email
-        setCredentials({ email: signupData.email, password: '' });
-      }
+      setSignupData({ email: '', name: '', role: 'PROVIDER' });
     } catch (error: any) {
       toast({
         title: 'Signup Error',
@@ -149,55 +121,45 @@ export const LoginForm: React.FC = () => {
 
   /** ----------------- DEMO ------------------ */
   const demoCredentials = [
-    { role: 'Provider', email: 'provider@cyptrix.com', password: 'Provider$123' },
-    { role: 'Employee', email: 'employee@cyptrix.com', password: 'Employee$123' },
-    { role: 'Auditor', email: 'auditor@cyptrix.com', password: 'Auditor$123' },
-    { role: 'Admin', email: 'admin@cyptrix.com', password: 'Admin$123' },
+    { role: 'Provider', email: 'provider@cyptrix.com' },
+    { role: 'Employee', email: 'employee@cyptrix.com' },
+    { role: 'Auditor', email: 'auditor@cyptrix.com' },
+    { role: 'Admin', email: 'admin@cyptrix.com' },
   ];
 
-  const handleDemoLogin = (email: string, password: string) => {
-    setCredentials({ email, password });
-  };
-
-  const handleCreateDemoAccount = async (demo: typeof demoCredentials[0]) => {
-    setIsSigningUp(true);
+  const handleDemoLogin = async (demoEmail: string) => {
+    setIsLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: demo.email,
-        password: demo.password,
+      const { error } = await supabase.auth.signInWithOtp({
+        email: demoEmail,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            name: demo.role,
-            role: demo.role.toUpperCase(),
-          },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) {
         toast({
-          title: 'Demo Account Creation Failed',
+          title: 'Error',
           description: error.message,
           variant: 'destructive',
         });
-        return;
+      } else {
+        toast({
+          title: 'Magic Link Sent',
+          description: `Check ${demoEmail} for the sign-in link`,
+        });
       }
-
-      toast({
-        title: 'Demo Account Created!',
-        description: `${demo.role} account created successfully. You can now sign in.`,
-      });
-
-      setCredentials({ email: demo.email, password: demo.password });
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create demo account',
+        description: error.message || 'Failed to send magic link',
         variant: 'destructive',
       });
     } finally {
-      setIsSigningUp(false);
+      setIsLoading(false);
     }
   };
 
@@ -245,40 +207,28 @@ export const LoginForm: React.FC = () => {
                         type="email"
                         placeholder="your.email@cyptrix.com"
                         className="pl-10"
-                        value={credentials.email}
-                        onChange={(e) =>
-                          setCredentials((prev) => ({ ...prev, email: e.target.value }))
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Enter your password"
-                        className="pl-10"
-                        value={credentials.password}
-                        onChange={(e) =>
-                          setCredentials((prev) => ({ ...prev, password: e.target.value }))
-                        }
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         required
                       />
                     </div>
                   </div>
 
                   {errorMsg && (
-                    <p className="text-red-500 text-sm text-center">{errorMsg}</p>
+                    <p className="text-sm text-destructive text-center">{errorMsg}</p>
+                  )}
+
+                  {successMsg && (
+                    <p className="text-sm text-primary text-center">{successMsg}</p>
                   )}
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Signing In...' : 'Sign In'}
+                    {isLoading ? 'Sending Magic Link...' : 'Send Magic Link'}
                   </Button>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    We'll send you a magic link to sign in without a password
+                  </p>
                 </form>
               </TabsContent>
 
@@ -341,49 +291,22 @@ export const LoginForm: React.FC = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        className="pl-10"
-                        value={signupData.password}
-                        onChange={(e) =>
-                          setSignupData((prev) => ({ ...prev, password: e.target.value }))
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
+                  {errorMsg && (
+                    <p className="text-sm text-destructive text-center">{errorMsg}</p>
+                  )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="signup-confirm-password"
-                        type="password"
-                        placeholder="Confirm your password"
-                        className="pl-10"
-                        value={signupData.confirmPassword}
-                        onChange={(e) =>
-                          setSignupData((prev) => ({
-                            ...prev,
-                            confirmPassword: e.target.value,
-                          }))
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
+                  {successMsg && (
+                    <p className="text-sm text-primary text-center">{successMsg}</p>
+                  )}
 
                   <Button type="submit" className="w-full" disabled={isSigningUp}>
                     <UserPlus className="h-4 w-4 mr-2" />
-                    {isSigningUp ? 'Creating Account...' : 'Create Account'}
+                    {isSigningUp ? 'Sending Magic Link...' : 'Create Account'}
                   </Button>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    We'll send you a magic link to complete signup
+                  </p>
                 </form>
               </TabsContent>
             </Tabs>
@@ -395,39 +318,30 @@ export const LoginForm: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-sm">Demo Accounts</CardTitle>
             <CardDescription>
-              Create demo accounts or auto-fill login credentials
+              Send magic links to demo email addresses
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-2">
               {demoCredentials.map((demo) => (
-                <div key={demo.role} className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDemoLogin(demo.email, demo.password)}
-                    className="flex-1 justify-start text-xs"
-                  >
-                    <span className="font-medium">{demo.role}:</span>
-                    <span className="ml-2 text-muted-foreground truncate">
-                      {demo.email}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleCreateDemoAccount(demo)}
-                    disabled={isSigningUp}
-                    className="px-3"
-                  >
-                    <UserPlus className="h-3 w-3" />
-                  </Button>
-                </div>
+                <Button
+                  key={demo.role}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDemoLogin(demo.email)}
+                  disabled={isLoading}
+                  className="justify-start text-xs"
+                >
+                  <Mail className="h-3 w-3 mr-2" />
+                  <span className="font-medium">{demo.role}:</span>
+                  <span className="ml-2 text-muted-foreground truncate">
+                    {demo.email}
+                  </span>
+                </Button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Click the + button to create a demo account, then use the credentials to
-              sign in
+              Click to send a magic link to the demo email address
             </p>
           </CardContent>
         </Card>
